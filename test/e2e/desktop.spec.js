@@ -2,6 +2,7 @@ import { test,expect,_electron as electron } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { CLAUDE_EXTENSION_ID } from '../../src/providers/claude-web-config.js';
 import { dayUTC,lastDays,dayLocal } from '../../src/core/model.js';
 let directory,desktop,page;
 async function launch(){ const env={...process.env,AI_TRACKER_DATA_DIR:directory,AI_TRACKER_HIDDEN_TEST:'1'};delete env.ELECTRON_RUN_AS_NODE;desktop=await electron.launch({args:['.'],env});page=await desktop.firstWindow();await expect(page.getByRole('heading',{name:'Your AI, in view.'})).toBeVisible();await desktop.evaluate(({powerMonitor})=>{powerMonitor.getSystemIdleTime=()=>0;}); }
@@ -88,16 +89,27 @@ test('Claude account preview requires confirmation and handles signed-out profil
  await page.getByRole('button',{name:'Use existing Claude Code sign-in',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('not signed in');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toHaveCount(0);
 });
 
-test('Claude browser sign-in is primary and handles success, cancel and failure',async()=>{
+test('Claude Code browser sign-in remains available and handles success, cancel and failure',async()=>{
  directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-browser-'));await launch();
  await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Browser Claude');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
- await expect(page.getByRole('button',{name:'Sign in with Claude',exact:true})).toHaveClass(/primary/);
+ await expect(page.getByRole('button',{name:'Connect Claude website · Free & paid',exact:true})).toHaveClass(/primary/);
  await desktop.evaluate(({ipcMain})=>{
   ipcMain.removeHandler('tracker:claude-login');ipcMain.handle('tracker:claude-login',()=>new Promise(resolve=>{globalThis.completeClaude=resolve;}));
   ipcMain.removeHandler('tracker:claude-cancel');ipcMain.handle('tracker:claude-cancel',()=>{globalThis.completeClaude?.({ok:false,error:'Claude sign-in canceled.'});return {ok:true};});
   ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:true,email:'browser@example.test',subscription:'pro'}}));
  });
- await page.getByRole('button',{name:'Sign in with Claude',exact:true}).click();await expect(page.locator('#claude-login-status')).toContainText('Waiting');await page.getByRole('button',{name:'Cancel sign-in',exact:true}).click();await expect(page.locator('#dialog-title')).toHaveText('Browser Claude');
- await page.getByRole('button',{name:'Sign in with Claude',exact:true}).click();await expect(page.locator('#claude-login-status')).toBeVisible();await desktop.evaluate(()=>globalThis.completeClaude({ok:false,error:'Fixture sign-in failure'}));await expect(page.locator('#claude-login-status')).toHaveText('Fixture sign-in failure');
+ await page.getByRole('button',{name:'Sign in to Claude Code',exact:true}).click();await expect(page.locator('#claude-login-status')).toContainText('Waiting');await page.getByRole('button',{name:'Cancel sign-in',exact:true}).click();await expect(page.locator('#dialog-title')).toHaveText('Browser Claude');
+ await page.getByRole('button',{name:'Sign in to Claude Code',exact:true}).click();await expect(page.locator('#claude-login-status')).toBeVisible();await desktop.evaluate(()=>globalThis.completeClaude({ok:false,error:'Fixture sign-in failure'}));await expect(page.locator('#claude-login-status')).toHaveText('Fixture sign-in failure');
  await page.getByRole('button',{name:'Try browser sign-in again',exact:true}).click();await expect(page.locator('#claude-login-status')).toContainText('Waiting');await desktop.evaluate(()=>globalThis.completeClaude({ok:true,value:{loggedIn:true}}));await expect(page.locator('#claude-detection')).toContainText('browser@example.test');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeDisabled();
+});
+
+test('Claude Free website setup displays reported remaining limits and revokes the companion',async()=>{
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-free-'));await launch();
+ await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Free Claude');await page.getByRole('textbox',{name:'Subscription / plan (optional)',exact:true}).fill('free');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
+ await page.getByRole('button',{name:'Connect Claude website · Free & paid',exact:true}).click();await expect(page.locator('#dialog')).toContainText('No Claude Code subscription is needed');await page.getByRole('button',{name:'Create connection code',exact:true}).click();
+ const code=await page.getByRole('textbox',{name:'Browser companion connection code',exact:true}).inputValue();const [port,token]=code.split('.');const headers={Origin:`chrome-extension://${CLAUDE_EXTENSION_ID}`,Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
+ expect((await fetch(`http://127.0.0.1:${port}/pair`,{method:'POST',headers})).status).toBe(200);
+ expect((await fetch(`http://127.0.0.1:${port}/usage`,{method:'POST',headers,body:JSON.stringify({orgId:'12345678-1234-1234-1234-123456789abc',kind:'message_limit',usage:{windows:{'5h':{utilization:0.3,resets_at:Date.now()+3600000}}}})})).status).toBe(200);
+ await page.getByRole('button',{name:'Back',exact:true}).click();await expect(page.locator('#connection-status')).toHaveText('Claude website linked');await page.getByRole('button',{name:'Close dialog',exact:true}).click();await expect(page.locator('.account')).toContainText('70% left');await expect(page.locator('.account')).toContainText('Browser reading');await expect(page.getByRole('meter')).toHaveAttribute('aria-valuenow','70');await page.screenshot({path:'test-results/claude-free-remaining.png',fullPage:true});
+ await page.getByRole('button',{name:'Manage Free Claude',exact:true}).click();await page.getByRole('button',{name:'Unlink from tracker',exact:true}).click();expect((await fetch(`http://127.0.0.1:${port}/pair`,{method:'POST',headers})).status).toBe(401);
 });

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "AI Usage Tracker — Claude companion",
+  "version": "0.1.0",
+  "description": "Send Claude website usage percentages to your local AI Usage Tracker. No chat text or credentials are sent.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhYS7DDETMRE6Xap8dGDxqXrH9Qaplv0/y2jenjtBZ9jmimEhAyA4ETURCvbAzQsMI6ArVnf+wscs0vp+ukU6HbtVJ9gW+uwbKXlYnIpC2IfIHd93vdIEiBbP1Qz87ijz0NwbJ99Qrs2PIaPvarWVaLzBMwr0+YZ2Sntangb53grs8UXCDPbr+QLSSb/krBzqHyV4trJgcq/5VBR3l4vdbeP3EIHaxrlQvdWUlhX7Hh9ZZs/98uhk0/0IRmO5Qj/nHvgkcvLFxkW4WGvx/SETv0OmBY3kIi7vLthToaFlA+56qJHmsJjGcVOvmf7188BqkCt9015jRwXkvtZ42gJrBQIDAQAB",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "observe.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

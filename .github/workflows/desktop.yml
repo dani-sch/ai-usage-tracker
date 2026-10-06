@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npx playwright install chromium
       - run: npm run test:e2e
       - run: npm run ${{ matrix.package }}
         env:

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { validateAccount, PROVIDERS } from './model.js';
 import { githubUsage, apiTokens, codexQuotas } from '../providers/api.js';
 import { readLogs } from '../providers/logs.js';
+import { clearClaudeWeb } from '../providers/claude-web.js';
 import { ClaudeLogin, claudeStatus } from '../providers/claude.js';
 import { CodexClient, findCodex } from '../providers/codex.js';
 
@@ -29,6 +30,7 @@ export class Tracker extends EventEmitter {
       const a=this.store.account(id);
       // A new account must not inherit history attributed to a previous sign-in.
       if(a.identity!==identity.email){a.logPath=null;a.tokens=null;a.claudeLocalLinked=false;}
+      if(a.claudeWeb)clearClaudeWeb(this,id);a.quotas=[];
       a.identity=identity.email;a.claudeSignedIn=true;a.claudeAuthMismatch=false;if(identity.subscription)a.subscription=identity.subscription;
       a.error=null;a.status='ready';a.lastSuccess=Date.now();this.store.save();return identity;
     } finally { if(this.claudeLogin===attempt)this.claudeLogin=null;this.changed(); }
@@ -38,13 +40,14 @@ export class Tracker extends EventEmitter {
     const account=this.store.account(id);
     if(account.provider!=='claude'||!identity.loggedIn)throw new Error('Sign in to Claude Code before linking history.');
     await this.setLogPath(id,directory);
+    if(account.claudeWeb){account.claudeLocalLinked=true;this.store.save();this.changed();return;}
     account.identity=identity.email||'Local Claude Code profile';
     if(identity.subscription)account.subscription=identity.subscription;
     account.claudeLocalLinked=true;account.note='Linked local Claude Code history. Claude chat messages and subscription quotas are not synchronized. No sign-in credentials are stored by this tracker.';
     this.store.save();this.changed();
   }
   state() {
-    return { ...this.store.data, providers: PROVIDERS, active: this.store.active, secureStorage: this.vault.available(), accounts: this.store.data.accounts.map(a => ({ ...a, connected: a.provider === 'codex' ? !!a.signedIn : a.provider==='claude' ? !!a.claudeSignedIn&&!a.claudeAuthMismatch : this.vault.has(a.id), refreshing: this.inflight.has(a.id), loginPending: this.login?.id === a.id || this.claudeLogin?.id === a.id })) };
+    return { ...this.store.data, providers: PROVIDERS, active: this.store.active, secureStorage: this.vault.available(), accounts: this.store.data.accounts.map(a => ({ ...a, connected: a.provider === 'codex' ? !!a.signedIn : a.provider==='claude' ? !!a.claudeWeb?.paired || (!!a.claudeSignedIn&&!a.claudeAuthMismatch) : this.vault.has(a.id), refreshing: this.inflight.has(a.id), loginPending: this.login?.id === a.id || this.claudeLogin?.id === a.id })) };
   }
   add(input) {
     if (this.store.data.accounts.length >= 30) throw new Error('Up to 30 accounts are supported.');
@@ -105,12 +108,12 @@ export class Tracker extends EventEmitter {
     if (this.store.data.accounts.some(x => x.id !== id && x.logPath && (normalized(x.logPath) === c || normalized(x.logPath).startsWith(c+path.sep) || c.startsWith(normalized(x.logPath)+path.sep)))) throw new Error('That folder overlaps a source already assigned to another account. Use separate account folders to avoid double counting.');
     a.logPath = canonical; a.tokens = null; a.lastAttempt = 0; a.retryAt = 0; this.store.save(); await this.refresh(id);
   }
-  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; if(a.provider==='claude'){if(!a.claudeSignedIn)a.identity=null;a.claudeLocalLinked=false;a.status=a.claudeSignedIn?'ready':'setup';a.note=null;a.error=null;a.lastSuccess=null;} this.store.save(); this.changed(); }
+  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; if(a.provider==='claude'&&!a.claudeWeb){if(!a.claudeSignedIn)a.identity=null;a.claudeLocalLinked=false;a.status=a.claudeSignedIn?'ready':'setup';a.note=null;a.error=null;a.lastSuccess=null;} this.store.save(); this.changed(); }
   async disconnect(id) {
     await this.inflight.get(id); const a = this.store.account(id);
     if (this.login?.id === id) await this.cancelLogin();
     if(this.claudeLogin?.id===id)this.cancelClaudeLogin();
-    if(a.provider==='claude'){a.claudeSignedIn=false;a.claudeLocalLinked=false;a.logPath=null;a.tokens=null;}
+    if(a.provider==='claude'){if(a.claudeWeb)clearClaudeWeb(this,id);a.claudeSignedIn=false;a.claudeLocalLinked=false;a.logPath=null;a.tokens=null;}
     if (a.provider === 'codex' && a.signedIn) { await this.client(id).call('account/logout'); this.clients.get(id)?.close(); this.clients.delete(id); }
     this.vault.remove(id); a.signedIn = false; a.identity = null; a.quotas = []; a.usage = null; a.usageHistory = null; a.status = 'setup'; a.error = null; a.lastSuccess = null; a.lastAttempt = 0;
     if (!a.logPath) a.tokens = null;
@@ -146,6 +149,13 @@ export class Tracker extends EventEmitter {
           a.quotas = codexQuotas(report); a.identity = auth.account.email || 'ChatGPT account'; a.plan = auth.account.planType;
           a.source = 'Official Codex app server'; a.note = 'Codex limits only. ChatGPT chat limits are separate.'; success = true;
         } else a.note = 'Connect with ChatGPT to see Codex quotas. Local logs can be linked separately.';
+      } else if(a.provider==='claude'&&a.claudeWeb) {
+        a.note='Keep Claude open in your paired browser. Free-account readings may arrive after a normal chat response.';
+        // Browser observations retain their own timestamp; refresh never makes old data fresh.
+        a.status=a.claudeWeb.lastReceived?'ready':'setup';
+        if(a.logPath){try{a.tokens=await this.adapters.readLogs(a.logPath,a.provider);}catch{a.error='Local history could not be read. Browser usage remains available.';}}
+        a.nextPoll=Date.now()+this.store.data.settings.pollSeconds*1000;
+        return;
       } else if(a.provider==='claude'&&a.claudeSignedIn) {
         readLocal=false;a.claudeAuthMismatch=true;
         const identity=await this.adapters.claudeStatus();

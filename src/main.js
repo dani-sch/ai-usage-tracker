@@ -4,6 +4,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store, Vault } from './core/store.js';
 import { Tracker } from './core/service.js';
 import { allowedExternal } from './core/security.js';
+import { ClaudeWebBridge } from './providers/claude-web.js';
+import fs from 'node:fs';
 import { claudeStatus, claudeDirectory } from './providers/claude.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -12,7 +14,7 @@ const profileDirectory = app.commandLine.getSwitchValue('user-data-dir');
 if (profileDirectory) app.setPath('userData', path.resolve(profileDirectory));
 if (!app.isPackaged && process.env.AI_TRACKER_DATA_DIR) app.setPath('userData',path.resolve(process.env.AI_TRACKER_DATA_DIR));
 app.setName('AI Usage Tracker');
-let window, tracker, tray, quitting = false, tick, poll;
+let window, tracker, tray, claudeWeb, quitting = false, tick, poll;
 const rendererURL = pathToFileURL(path.join(here,'renderer','index.html')).href;
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
@@ -29,6 +31,8 @@ function handle(name, fn) {
 async function boot() {
   const directory = app.getPath('userData');
   tracker = new Tracker(new Store(directory),new Vault(directory,safeStorage),directory);
+  claudeWeb=new ClaudeWebBridge(tracker);
+  if(tracker.store.data.accounts.some(a=>a.claudeWeb))void claudeWeb.start().catch(()=>{});
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
   const area=screen.getPrimaryDisplay().workArea;
@@ -55,6 +59,17 @@ async function boot() {
     if (!selection.canceled) await tracker.setLogPath(id,selection.filePaths[0]);
   });
   handle('clear-logs',id=>tracker.clearLogs(id));
+  handle('claude-web-prepare',id=>claudeWeb.prepare(id));
+  handle('claude-web-folder',async()=>{
+    const target=path.join(directory,'claude-browser-companion');
+    await fs.promises.mkdir(target,{recursive:true});
+    for(const name of ['manifest.json','parse.js','observe.js','content.js','background.js','popup.html','popup.js']) {
+      const bytes=await fs.promises.readFile(path.join(here,'browser-extension',name));
+      await fs.promises.writeFile(path.join(target,name),bytes);
+    }
+    const error=await shell.openPath(target);if(error)throw new Error('Could not open the extension folder.');
+    return target;
+  });
   handle('claude-status',()=>claudeStatus());
   handle('claude-login',id=>tracker.beginClaudeLogin(id));
   handle('claude-cancel',()=>tracker.cancelClaudeLogin());
@@ -113,6 +128,6 @@ function updateTray() {
   items.push({type:'separator'},{label:active ? 'Stop focus timer' : 'Focus timer is stopped',enabled:!!active,click:()=>{tracker.store.stop('Timer stopped',Date.now(),powerMonitor.getSystemIdleTime()); tracker.changed();}},{label:'Refresh accounts',click:()=>void tracker.refreshAll()},{label:'Quit',click:()=>app.quit()});
   tray.setContextMenu(Menu.buildFromTemplate(items));
 }
-app.on('before-quit',()=>{ quitting = true; clearInterval(tick); clearInterval(poll); if (tracker) { tracker.store.stop('App closed',Date.now(),powerMonitor.getSystemIdleTime()); tracker.close(); } });
+app.on('before-quit',()=>{ quitting = true; claudeWeb?.close(); clearInterval(tick); clearInterval(poll); if (tracker) { tracker.store.stop('App closed',Date.now(),powerMonitor.getSystemIdleTime()); tracker.close(); } });
 app.on('window-all-closed',()=>app.quit());
 app.on('activate',()=>window?.show());

@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('tracker', {
   chooseLogs: id => ipcRenderer.invoke('tracker:logs', id),
   clearLogs: id => ipcRenderer.invoke('tracker:clear-logs', id),
   detectedLogs: id => ipcRenderer.invoke('tracker:detected-logs', id),
+  prepareClaudeWeb: id => ipcRenderer.invoke('tracker:claude-web-prepare',id),
+  openClaudeExtension: () => ipcRenderer.invoke('tracker:claude-web-folder'),
   claudeLogin: id => ipcRenderer.invoke('tracker:claude-login',id),
   cancelClaudeLogin: () => ipcRenderer.invoke('tracker:claude-cancel'),
   openClaudeBrowser: () => ipcRenderer.invoke('tracker:claude-open-browser'),
