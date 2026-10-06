@@ -14,6 +14,15 @@ export class Tracker extends EventEmitter {
     this.clients = new Map(); this.inflight = new Map(); this.login = null; this.closed = false;
   }
   changed() { this.emit('changed'); }
+  async linkClaude(id,identity,directory) {
+    const account=this.store.account(id);
+    if(account.provider!=='claude'||!identity.loggedIn)throw new Error('Sign in to Claude Code before linking history.');
+    await this.setLogPath(id,directory);
+    account.identity=identity.email||'Local Claude Code profile';
+    if(identity.subscription)account.subscription=identity.subscription;
+    account.claudeLocalLinked=true;account.note='Linked local Claude Code history. Claude chat messages and subscription quotas are not synchronized. No sign-in credentials are stored by this tracker.';
+    this.store.save();this.changed();
+  }
   state() {
     return { ...this.store.data, providers: PROVIDERS, active: this.store.active, secureStorage: this.vault.available(), accounts: this.store.data.accounts.map(a => ({ ...a, connected: a.provider === 'codex' ? !!a.signedIn : this.vault.has(a.id), refreshing: this.inflight.has(a.id), loginPending: this.login?.id === a.id })) };
   }
@@ -76,7 +85,7 @@ export class Tracker extends EventEmitter {
     if (this.store.data.accounts.some(x => x.id !== id && x.logPath && (normalized(x.logPath) === c || normalized(x.logPath).startsWith(c+path.sep) || c.startsWith(normalized(x.logPath)+path.sep)))) throw new Error('That folder overlaps a source already assigned to another account. Use separate account folders to avoid double counting.');
     a.logPath = canonical; a.tokens = null; a.lastAttempt = 0; a.retryAt = 0; this.store.save(); await this.refresh(id);
   }
-  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; this.store.save(); this.changed(); }
+  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; if(a.provider==='claude'){a.identity=null;a.claudeLocalLinked=false;a.status='setup';a.note=null;a.error=null;a.lastSuccess=null;} this.store.save(); this.changed(); }
   async disconnect(id) {
     await this.inflight.get(id); const a = this.store.account(id);
     if (this.login?.id === id) await this.cancelLogin();

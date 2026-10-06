@@ -77,3 +77,13 @@ test('30-day graph, exact hover values, provider filtering and renderer isolatio
  await page.locator('#sidebar').getByRole('button',{name:'Claude 1',exact:true}).click();await expect(page.locator('.account')).toHaveCount(1);await page.locator('#day-29').hover();await expect(page.locator('#chart-tooltip')).toContainText('unavailable');
  await page.getByRole('button',{name:'Daily values'}).click();await expect(page.locator('.token-table tbody tr')).toHaveCount(30);await expect(page.locator('.token-table tbody tr').first()).toContainText(dayUTC(now));
 });
+
+test('Claude account preview requires confirmation and handles signed-out profiles',async()=>{
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-account-'));await launch();
+ await desktop.evaluate(({ipcMain})=>{ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:true,email:'fixture@example.test',subscription:'max'}}));});
+ await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Personal Claude');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
+ await page.getByRole('button',{name:'Link Claude Code',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('fixture@example.test');await expect(page.locator('#claude-detection')).toContainText('max');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeDisabled();await page.getByRole('checkbox').check();await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeEnabled();
+ await page.screenshot({path:'test-results/claude-account-link.png',fullPage:true});
+ await page.getByRole('button',{name:'Back',exact:true}).click();await desktop.evaluate(({ipcMain})=>{ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:false}}));});
+ await page.getByRole('button',{name:'Link Claude Code',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('not signed in');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toHaveCount(0);
+});

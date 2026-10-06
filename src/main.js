@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store, Vault } from './core/store.js';
 import { Tracker } from './core/service.js';
 import { allowedExternal } from './core/security.js';
+import { claudeStatus, claudeDirectory } from './providers/claude.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // A standard local launch switch also permits isolated packaged-app verification.
@@ -54,6 +55,14 @@ async function boot() {
     if (!selection.canceled) await tracker.setLogPath(id,selection.filePaths[0]);
   });
   handle('clear-logs',id=>tracker.clearLogs(id));
+  handle('claude-status',()=>claudeStatus());
+  handle('link-claude',async(id,expectedEmail)=> {
+    if(tracker.store.account(id).provider!=='claude')throw new Error('Select a Claude account.');
+    const identity=await claudeStatus();
+    if(!identity.loggedIn)throw new Error('Sign in to Claude Code first, then link it here.');
+    if(identity.email!==expectedEmail)throw new Error('The Claude Code account changed. Reopen the connection screen and confirm the current account.');
+    await tracker.linkClaude(id,identity,path.join(claudeDirectory(),'projects'));
+  });
   handle('detected-logs',async id=> {
     const account=tracker.store.account(id);
     if (account.provider !== 'codex') throw new Error('Automatic log discovery is available for Codex.');

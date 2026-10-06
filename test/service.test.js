@@ -17,3 +17,14 @@ test('refresh coalesces overlapping requests and preserves prior data after fail
 test('log sources cannot overlap across accounts; removing account cleans history',async()=>{
  const f=setup({readLogs:async()=>({days:{},source:'Fixture'})});try{const a=f.tracker.add({provider:'claude',label:'A'}),b=f.tracker.add({provider:'claude',label:'B'});const root=path.join(f.directory,'logs');fs.mkdirSync(path.join(root,'child'),{recursive:true});await f.tracker.setLogPath(a,root);await assert.rejects(f.tracker.setLogPath(b,path.join(root,'child')),/overlaps/);f.store.data.segments.push({accountId:a,day:'2026-10-06',ms:1000});await f.tracker.remove(a);assert.equal(f.store.data.accounts.length,1);assert.equal(f.store.data.segments.length,0);assert.ok(fs.existsSync(root));}finally{f.clean();}
 });
+
+test('Claude account link records detected identity and plan, and unlinks without credentials',async()=>{
+ const f=setup({readLogs:async()=>({days:{},source:'Fixture'})});
+ try {
+  const id=f.tracker.add({provider:'claude',label:'Personal',subscription:'free'});
+  await assert.rejects(f.tracker.linkClaude(id,{loggedIn:false},f.directory),/Sign in/);
+  await f.tracker.linkClaude(id,{loggedIn:true,email:'fixture@example.test',subscription:'max'},f.directory);
+  assert.equal(f.store.account(id).identity,'fixture@example.test');assert.equal(f.store.account(id).subscription,'max');assert.equal(f.store.account(id).status,'ready');assert.equal(f.vault.has(id),false);
+  await f.tracker.clearLogs(id);assert.equal(f.store.account(id).identity,null);assert.equal(f.store.account(id).status,'setup');assert.equal(f.store.account(id).tokens,null);
+ }finally{f.clean();}
+});
