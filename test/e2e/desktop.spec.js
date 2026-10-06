@@ -16,7 +16,17 @@ test('side panel switches daily units, resizes, pins and handles narrow layouts'
   {id:'00000000-0000-4000-a000-000000000002',provider:'copilot',label:'Personal Copilot',subscription:'Max',quotas:[],usage:{unit:'ai-credits',value:8266.609,period:dayUTC(now).slice(0,7)},usageHistory:{unit:'ai-credits',days:Object.fromEntries(dates.map((d,i)=>[d,i*5.5]))},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999}],segments:[]}));
  await launch();expect(await page.evaluate(()=>innerWidth)).toBeLessThan(500);
  await expect(page.locator('#active-today')).not.toHaveText('—');
- const visibleCards=await page.locator('.account').evaluateAll(cards=>cards.every(card=>card.getBoundingClientRect().bottom<document.querySelector('.panel-tools').getBoundingClientRect().top));expect(visibleCards).toBe(true);
+ async function expectCardsAboveFooter(){
+  const layout=await page.evaluate(()=>({viewport:{width:innerWidth,height:innerHeight},footerTop:document.querySelector('.panel-tools').getBoundingClientRect().top,cards:[...document.querySelectorAll('.account')].map(card=>({top:card.getBoundingClientRect().top,bottom:card.getBoundingClientRect().bottom}))}));
+  expect(layout.cards.every(card=>card.top>=0&&card.bottom<layout.footerTop),JSON.stringify(layout)).toBe(true);
+ }
+ await expectCardsAboveFooter();
+ // Exercise a short laptop viewport explicitly; the default depends on the runner's display.
+ const originalSize=await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getSize());
+ await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(460,600));
+ await expect.poll(()=>page.evaluate(()=>Math.abs(innerHeight-600))).toBeLessThanOrEqual(1);await expectCardsAboveFooter();
+ await page.screenshot({path:'test-results/analytics-short.png'});
+ await desktop.evaluate(({BrowserWindow},size)=>BrowserWindow.getAllWindows()[0].setSize(...size),originalSize);
  await page.getByRole('tab',{name:'Active time',exact:true}).click();await expect(page.locator('.activity-source')).toContainText('Estimated time between local activity events');
  await page.getByRole('tab',{name:'AI credits',exact:true}).click();await page.locator('#day-29').click();await expect(page.locator('#chart-tooltip')).toContainText('159.5 AI credits');
  await page.getByRole('button',{name:'Daily values',exact:true}).click();await expect(page.locator('.token-table tbody tr').first()).toContainText('159.5');await page.getByRole('button',{name:'Close dialog'}).click();
