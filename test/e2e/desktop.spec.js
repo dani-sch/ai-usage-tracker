@@ -18,7 +18,7 @@ test('side panel switches daily units, resizes, pins and handles narrow layouts'
  await expect(page.locator('#active-today')).not.toHaveText('—');
  async function expectCardsAboveFooter(){
   const layout=await page.evaluate(()=>({viewport:{width:innerWidth,height:innerHeight},footerTop:document.querySelector('.panel-tools').getBoundingClientRect().top,cards:[...document.querySelectorAll('.account')].map(card=>({top:card.getBoundingClientRect().top,bottom:card.getBoundingClientRect().bottom}))}));
-  expect(layout.cards.every(card=>card.top>=0&&card.bottom<layout.footerTop),JSON.stringify(layout)).toBe(true);
+  expect(layout.cards.every(card=>card.top>=0&&card.bottom<=layout.footerTop-8),JSON.stringify(layout)).toBe(true);
  }
  await expectCardsAboveFooter();
  // Exercise a short laptop viewport explicitly; the default depends on the runner's display.

@@ -146,8 +146,9 @@ dialog p,.field-note,.detail-row span{color:#666d7b}
 }
 
 @media(max-width:699px) and (max-height:650px){
- .brand-sub,.intro p{display:none}.brand{margin-bottom:6px}
- #main{padding-top:8px}.intro{margin-bottom:6px}.summary{margin-bottom:8px}
+ .brand-sub,.intro p{display:none}.brand{margin-bottom:4px}
+ #sidebar{padding-top:6px}#sidebar nav{padding-bottom:6px}
+ #main{padding-top:6px}.intro{margin-bottom:4px}.summary{margin-bottom:6px}
  .stat{padding:8px 10px}.stat-value{font-size:22px;margin:2px 0}
  .compact-account{padding-top:7px;padding-bottom:7px}
 }
