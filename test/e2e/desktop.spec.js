@@ -6,6 +6,26 @@ import { dayUTC,lastDays,dayLocal } from '../../src/core/model.js';
 let directory,desktop,page;
 async function launch(){ const env={...process.env,AI_TRACKER_DATA_DIR:directory,AI_TRACKER_HIDDEN_TEST:'1'};delete env.ELECTRON_RUN_AS_NODE;desktop=await electron.launch({args:['.'],env});page=await desktop.firstWindow();await expect(page.getByRole('heading',{name:'Your AI, in view.'})).toBeVisible();await desktop.evaluate(({powerMonitor})=>{powerMonitor.getSystemIdleTime=()=>0;}); }
 test.afterEach(async()=>{await desktop?.close();fs.rmSync(directory,{recursive:true,force:true});});
+test('side panel switches daily units, resizes, pins and handles narrow layouts',async()=>{
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-panel-'));
+ const now=Date.now(),dates=lastDays(now),days=Object.fromEntries(dates.map((d,i)=>[d,(i%7)*1200]));
+ fs.writeFileSync(path.join(directory,'state.json'),JSON.stringify({version:1,settings:{pollSeconds:300,closeToTray:false},accounts:[
+  {id:'00000000-0000-4000-a000-000000000001',provider:'codex',label:'Personal Codex',subscription:'Pro',quotas:[{name:'codex · 7 day',remainingPercent:86,resetsAt:now+86400000}],tokens:{days,source:'Local test fixture',scope:'Selected folder',fetchedAt:now},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999},
+  {id:'00000000-0000-4000-a000-000000000002',provider:'copilot',label:'Personal Copilot',subscription:'Max',quotas:[],usage:{unit:'ai-credits',value:8266.609,period:dayUTC(now).slice(0,7)},usageHistory:{unit:'ai-credits',days:Object.fromEntries(dates.map((d,i)=>[d,i*5.5]))},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999}],segments:[]}));
+ await launch();expect(await page.evaluate(()=>innerWidth)).toBeLessThan(500);
+ await page.getByRole('tab',{name:'AI credits',exact:true}).click();await page.locator('#day-29').click();await expect(page.locator('#chart-tooltip')).toContainText('159.5 AI credits');
+ await page.getByRole('button',{name:'Daily values',exact:true}).click();await expect(page.locator('.token-table tbody tr').first()).toContainText('159.5');await page.getByRole('button',{name:'Close dialog'}).click();
+ await page.getByRole('tab',{name:'Tokens',exact:true}).click();await page.locator('#day-29').focus();await expect(page.locator('#chart-tooltip')).toContainText('1,200 tokens');
+ await page.getByRole('tab',{name:'Focus',exact:true}).click();await page.locator('#day-29').click();await expect(page.locator('#chart-tooltip')).toContainText('0 minutes');
+ await page.getByRole('tab',{name:'AI credits',exact:true}).click();
+ await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'test-results/compact-panel.png',fullPage:true});
+ await page.getByRole('button',{name:'Pin on top',exact:true}).click();await expect(page.getByRole('button',{name:'Unpin',exact:true})).toHaveAttribute('aria-pressed','true');expect(await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop())).toBe(true);
+ await page.getByRole('button',{name:'Resize view',exact:true}).click();await expect.poll(()=>page.evaluate(()=>innerWidth)).toBeGreaterThan(600);
+ await page.getByRole('button',{name:'Resize view',exact:true}).click();await expect.poll(()=>page.evaluate(()=>innerWidth)).toBeLessThan(500);
+ await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(360,640));expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.locator('#dialog-title')).toHaveText('Settings');await page.getByRole('button',{name:'Close dialog'}).click();
+ await desktop.close();await launch();expect(await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop())).toBe(true);
+});
 test('Copilot estimated remaining credits, allowance editing and restart persistence',async()=>{
  directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-copilot-balance-'));
  const now=Date.now();

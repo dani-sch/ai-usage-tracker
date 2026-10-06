@@ -5,11 +5,12 @@ A private Windows and macOS desktop dashboard for AI subscription accounts, repo
 ## Features
 
 - Multiple named accounts per provider, subscription/provider filters, automatic polling, manual refresh, and tray/menu-bar access.
+- Compact 460-pixel side panel, horizontally scrolling provider tabs, expanded view, and an optional persistent pin-on-top setting.
 - Codex remaining quota windows and reset timestamps through the official app server.
 - GitHub Copilot personal billing usage, with AI-credit and legacy premium-request modes. AI-credit accounts show estimated credits remaining and a percentage bar using the plan allowance or an editable override.
 - OpenAI and Anthropic organization API token reports, with pagination.
 - Optional Codex and Claude Code local logs for reported tokens.
-- Rolling 30-day token chart with exact hover/keyboard values and an accessible daily table.
+- Rolling 30-day daily usage chart with separate Tokens, AI credits, legacy Requests, and Focus views, exact hover/tap/keyboard values, and an accessible daily table. Copilot daily billing is fetched and cached independently of monthly totals.
 - Per-account focus timers, today's and this month's working time, idle/lock/sleep protection.
 - Encrypted credentials, isolated Codex sign-ins, atomic persistence, and account removal.
 
@@ -34,11 +35,13 @@ Use **Add account**, choose a provider, name the account, and optionally enter a
 
 Never paste credentials into chat, issues, or source files. Enter them only in the app's password field. Browser sign-in is used where available.
 
-For Codex tokens, select a `sessions` folder from the CLI profile whose work you want to attribute. The tracker's isolated sign-in profiles do not automatically contain working sessions. Logs with multiple identities cannot reliably be split by subscription; use separate working profiles. Overlapping folder sources are rejected.
+For Codex tokens, use **Link token history** below the chart, confirm account attribution, and choose **Use this computer’s Codex history** or select a `sessions` folder yourself. Automatic discovery uses `CODEX_HOME/sessions`, falling back to `~/.codex/sessions`. The tracker's isolated sign-in profiles do not automatically contain working sessions. Logs with multiple identities cannot reliably be split by subscription; use separate working profiles. Overlapping folder sources are rejected.
 
 ## Data semantics
 
 **Tokens:** input plus output, including cached input exactly once. Codex cumulative snapshots are deduplicated. Claude assistant messages are deduplicated and their disjoint cache categories included. Token dates use UTC, as do API reports. Local values cover only selected folders and retained records. Provider ingestion can lag. Missing values show `—`/Unavailable. Complete successful reports may return zero. Malformed API results preserve previous readings; unreadable JSONL records show a partial-data warning.
+
+**Daily billing:** GitHub's day-filtered billing reports supply real daily AI credits or legacy requests, never fabricated tokens or evenly divided monthly totals. The initial backfill requests up to 30 days with at most three concurrent daily requests per account. Today refreshes with the account, recent days are rechecked hourly, older days daily. Rate limits stop backfill and preserve cached readings with an explicit warning; missing dates remain unavailable. Oversized local JSONL records (often image attachments) are skipped with a partial-history warning instead of discarding all valid counters.
 
 **Working time:** an explicit timer, one subscription at a time, not inference runtime or an estimate from tokens. It pauses after five minutes of OS inactivity, on lock, and on sleep. The grace period can include up to five minutes of inactivity. Checkpoints occur every 15 seconds; a crash can lose the last checkpoint interval. Timers never resume after restart; heartbeat gaps over one minute are discarded. Summaries use the local calendar at recording time, including DST.
 

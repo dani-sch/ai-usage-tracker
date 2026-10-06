@@ -25,11 +25,38 @@ export async function githubUsage(account, key, options = {}) {
   const mode = account.billingMode === 'premium_request' ? 'premium_request' : 'ai_credit';
   const url = `https://api.github.com/users/${encodeURIComponent(user.login)}/settings/billing/${mode}/usage?year=${now.getUTCFullYear()}&month=${now.getUTCMonth()+1}`;
   const report = await jsonRequest(url, headers, options);
-  if (!Array.isArray(report.usageItems)) throw new TelemetryError('GitHub returned an unsupported billing report.');
   const unit = mode === 'ai_credit' ? 'ai-credits' : 'requests';
-  const relevant = report.usageItems.filter(r => r.product?.toLowerCase().includes('copilot'));
+  const value = githubQuantity(report, unit);
+  const usageHistory = await githubDaily(account, user.login, mode, headers, options, now.getTime());
+  return { identity: user.login, quotas: [], usage: { value, unit, period: `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}` }, usageHistory, source: 'GitHub personal billing API', note: 'Reported monthly and daily billing usage. Remaining credits are estimated from your allowance; token counts are not reported. Organization-paid seats are excluded.' };
+}
+function githubQuantity(report, unit) {
+  if (!Array.isArray(report.usageItems)) throw new TelemetryError('GitHub returned an unsupported billing report.');
+  const relevant = report.usageItems.filter(r => typeof r.product === 'string' && r.product.toLowerCase().includes('copilot'));
   if (relevant.some(r => r.unitType !== unit || !Number.isFinite(r.grossQuantity) || r.grossQuantity < 0)) throw new TelemetryError('GitHub billing units changed. Usage was not converted.');
-  return { identity: user.login, quotas: [], usage: { value: relevant.reduce((n,r) => n+r.grossQuantity,0), unit, period: `${now.getUTCFullYear()}-${String(now.getUTCMonth()+1).padStart(2,'0')}` }, source: 'GitHub personal billing API', note: 'Monthly used amount only. Remaining allowance, reset time and tokens are not reported by this endpoint. Organization-paid seats are excluded.' };
+  return relevant.reduce((n,r)=>n+r.grossQuantity,0);
+}
+async function githubDaily(account, identity, mode, headers, options, now) {
+  const unit = mode === 'ai_credit' ? 'ai-credits' : 'requests';
+  const cached = account.usageHistory?.identity === identity && account.usageHistory?.unit === unit ? account.usageHistory : {};
+  const days = {}, checkedAt = {}, dates = lastDays(now), today = dates.at(-1);
+  for (const day of dates) {
+    if (Number.isFinite(cached.days?.[day]) && cached.days[day]>=0) { days[day]=cached.days[day]; checkedAt[day]=cached.checkedAt?.[day] || 0; }
+  }
+  if (cached.retryAt > now) return { ...cached, days, checkedAt };
+  // Recheck recent days each hour for delayed billing; older days daily. Today follows normal refresh.
+  const queue = dates.filter(day=> !Object.hasOwn(days,day) || day===today || now-checkedAt[day] > (day>=dates.at(-3)?3600000:86400000)).reverse();
+  let failure = null, retryAt = 0;
+  await Promise.all(Array.from({length:Math.min(3,queue.length)},async()=> {
+    while (queue.length && !failure) {
+      const day=queue.shift(), [year,month,date]=day.split('-').map(Number);
+      try {
+        const report=await jsonRequest(`https://api.github.com/users/${encodeURIComponent(identity)}/settings/billing/${mode}/usage?year=${year}&month=${month}&day=${date}`,headers,options);
+        days[day]=githubQuantity(report,unit);checkedAt[day]=now;
+      } catch(e) { failure=e;retryAt=now+(e.retryAfter || 300)*1000; }
+    }
+  }));
+  return { identity, unit, days, checkedAt, fetchedAt:now, retryAt, warning: failure ? `Daily history is incomplete. ${failure.message} Saved readings are kept; missing days are unavailable.` : null };
 }
 
 export async function apiTokens(provider, key, options = {}) {

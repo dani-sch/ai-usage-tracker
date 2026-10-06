@@ -41,6 +41,19 @@ export function tokenSeries(accounts, now = Date.now()) {
     return { day, total: known.length ? known.reduce((n,a) => n + a.tokens.days[day], 0) : null, reporting: known.length, accounts: accounts.length };
   });
 }
+export function activitySeries(accounts, metric = 'tokens', segments = [], now = Date.now()) {
+  if (metric === 'tokens') return tokenSeries(accounts, now);
+  const ids = new Set(accounts.map(a=>a.id));
+  const eligible = accounts.filter(a=>a.provider === 'copilot' && (metric === 'requests' ? a.billingMode === 'premium_request' : a.billingMode !== 'premium_request'));
+  const unit = metric === 'requests' ? 'requests' : 'ai-credits';
+  const local = new Date(now);
+  const dates = lastDays(metric === 'focus' ? Date.UTC(local.getFullYear(),local.getMonth(),local.getDate()) : now);
+  return dates.map(day=> {
+    if (metric === 'focus') return { day, total: segments.filter(s=>ids.has(s.accountId) && s.day===day).reduce((n,s)=>n+s.ms/60000,0), reporting: accounts.length, accounts: accounts.length };
+    const known = eligible.filter(a=>a.usageHistory?.unit === unit && Number.isFinite(a.usageHistory.days?.[day]) && a.usageHistory.days[day]>=0);
+    return { day, total: known.length ? known.reduce((n,a)=>n+a.usageHistory.days[day],0) : null, reporting: known.length, accounts: eligible.length };
+  });
+}
 export function validateAccount(input) {
   if (!input || !Object.hasOwn(PROVIDERS, input.provider)) throw new Error('Choose a supported provider.');
   const label = String(input.label ?? '').trim();

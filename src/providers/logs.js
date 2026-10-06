@@ -58,7 +58,7 @@ export class TokenAccumulator {
   }
 }
 export async function readLogs(directory, provider, now = Date.now()) {
-  const tally = new TokenAccumulator(provider, now); const budget = { files: 0, entries: 0, bytes: 0 }; let malformed = 0;
+  const tally = new TokenAccumulator(provider, now); const budget = { files: 0, entries: 0, bytes: 0 }; let malformed = 0, oversized = 0;
   for await (const file of files(directory, budget)) {
     const stat = await fs.promises.stat(file); budget.bytes += stat.size;
     if (stat.size > 250_000_000 || budget.bytes > 1_000_000_000) throw new Error('Log source exceeds 1 GB or has a file over 250 MB. Select a narrower folder.');
@@ -67,7 +67,9 @@ export async function readLogs(directory, provider, now = Date.now()) {
     const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
     try {
       for await (const line of lines) {
-        if (line.length > 10_000_000) throw new Error('A log record exceeds the supported size.');
+        // Image attachments can make conversation records enormous. Skip them without
+        // discarding valid usage counters elsewhere, and disclose the partial coverage.
+        if (line.length > 10_000_000) { oversized++; continue; }
         if (!line.trim()) continue;
         let event; try { event = JSON.parse(line); } catch { malformed++; continue; }
         if (event.type === 'session_meta' && event.payload?.id) session = event.payload.id;
@@ -77,5 +79,6 @@ export async function readLogs(directory, provider, now = Date.now()) {
   }
   if (!tally.recognized) throw new Error('No reported token records found. Select the correct logs folder; token usage remains unavailable.');
   const days = tally.result();
-  return { days, source: provider === 'codex' ? 'Local Codex session logs' : 'Local Claude Code logs', scope: 'Selected folder only • UTC days • not account-wide', fetchedAt: now, warning: malformed ? `${malformed} incomplete or unreadable records skipped; totals may be partial.` : null };
+  const warnings = [malformed ? `${malformed} incomplete or unreadable records skipped; totals may be partial.` : '', oversized ? `${oversized} oversized records skipped; totals may be partial.` : ''].filter(Boolean);
+  return { days, source: provider === 'codex' ? 'Local Codex session logs' : 'Local Claude Code logs', scope: 'Selected folder only • UTC days • not account-wide', fetchedAt: now, warning: warnings.join(' ') || null };
 }

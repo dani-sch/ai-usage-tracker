@@ -26,7 +26,7 @@ export class Tracker extends EventEmitter {
   async connectKey(id, secret) {
     await this.inflight.get(id); const a = this.store.account(id);
     if (!['copilot','openai-api','anthropic-api'].includes(a.provider)) throw new Error('This provider does not accept API credentials.');
-    this.vault.set(id,secret); a.retryAt = 0; a.lastAttempt = 0; a.identity = null; a.quotas = []; a.usage = null; a.tokens = null;
+    this.vault.set(id,secret); a.retryAt = 0; a.lastAttempt = 0; a.identity = null; a.quotas = []; a.usage = null; a.usageHistory = null; a.tokens = null;
     this.store.save(); await this.refresh(id);
   }
   client(id) {
@@ -81,7 +81,7 @@ export class Tracker extends EventEmitter {
     await this.inflight.get(id); const a = this.store.account(id);
     if (this.login?.id === id) await this.cancelLogin();
     if (a.provider === 'codex' && a.signedIn) { await this.client(id).call('account/logout'); this.clients.get(id)?.close(); this.clients.delete(id); }
-    this.vault.remove(id); a.signedIn = false; a.identity = null; a.quotas = []; a.usage = null; a.status = 'setup'; a.error = null; a.lastSuccess = null; a.lastAttempt = 0;
+    this.vault.remove(id); a.signedIn = false; a.identity = null; a.quotas = []; a.usage = null; a.usageHistory = null; a.status = 'setup'; a.error = null; a.lastSuccess = null; a.lastAttempt = 0;
     if (!a.logPath) a.tokens = null;
     this.store.save(); this.changed();
   }

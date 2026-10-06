@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, session, Tray, Menu, nativeImage, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, session, Tray, Menu, nativeImage, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store, Vault } from './core/store.js';
@@ -30,7 +30,10 @@ async function boot() {
   tracker = new Tracker(new Store(directory),new Vault(directory,safeStorage),directory);
   session.defaultSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
   session.defaultSession.setPermissionCheckHandler(()=>false);
-  window = new BrowserWindow({ width: 1340, height: 930, minWidth: 900, minHeight: 680, show: false, backgroundColor: '#101415', title: 'AI Usage Tracker', icon: path.join(here,'assets','icon.png'), webPreferences: { preload: path.join(here,'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  const area=screen.getPrimaryDisplay().workArea;
+  const panelWidth=Math.min(460,area.width), panelHeight=Math.min(900,area.height);
+  window = new BrowserWindow({ width: panelWidth, height: panelHeight, x:area.x+area.width-panelWidth, y:area.y, minWidth: 360, minHeight: 480, show: false, backgroundColor: '#101415', title: 'AI Usage Tracker', icon: path.join(here,'assets','icon.png'), webPreferences: { preload: path.join(here,'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  window.setAlwaysOnTop(!!tracker.store.data.settings.alwaysOnTop);
   window.webContents.setWindowOpenHandler(()=>({ action:'deny' }));
   window.webContents.on('will-navigate', event=>event.preventDefault());
   window.webContents.on('will-attach-webview', event=>event.preventDefault());
@@ -51,6 +54,19 @@ async function boot() {
     if (!selection.canceled) await tracker.setLogPath(id,selection.filePaths[0]);
   });
   handle('clear-logs',id=>tracker.clearLogs(id));
+  handle('detected-logs',async id=> {
+    const account=tracker.store.account(id);
+    if (account.provider !== 'codex') throw new Error('Automatic log discovery is available for Codex.');
+    await tracker.setLogPath(id,path.join(process.env.CODEX_HOME || path.join(app.getPath('home'),'.codex'),'sessions'));
+  });
+  handle('window',mode=> {
+    if (mode==='pin') { const pinned=!window.isAlwaysOnTop();window.setAlwaysOnTop(pinned);tracker.store.data.settings.alwaysOnTop=pinned;tracker.store.save();tracker.changed();return; }
+    if (!['compact','expand'].includes(mode)) throw new Error('Choose a supported window layout.');
+    const area=screen.getDisplayMatching(window.getBounds()).workArea;
+    if (window.isMaximized()) window.unmaximize();
+    const width=Math.min(mode==='compact'?460:1120,area.width),height=Math.min(900,area.height);
+    window.setBounds({x:area.x+area.width-width,y:area.y,width,height});window.show();
+  });
   handle('start',id=> { tracker.store.checkpoint(Date.now(),powerMonitor.getSystemIdleTime()); tracker.store.start(id); tracker.changed(); });
   handle('stop',()=> { tracker.store.stop('Timer stopped',Date.now(),powerMonitor.getSystemIdleTime()); tracker.changed(); });
   handle('settings',input=>tracker.settings(input));

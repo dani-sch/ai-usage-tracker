@@ -3,10 +3,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount,copilotAllowance,copilotBalance } from '../src/core/model.js';
+import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount,copilotAllowance,copilotBalance,activitySeries } from '../src/core/model.js';
 import { Store,Vault } from '../src/core/store.js';
 import { allowedExternal } from '../src/core/security.js';
 const now=Date.UTC(2026,9,6,14);
+test('activity charts keep units separate and missing history distinct from zero',()=>{
+ const accounts=[{id:'c',provider:'codex',tokens:{days:{'2026-10-06':100}}},{id:'g',provider:'copilot',usageHistory:{unit:'ai-credits',days:{'2026-10-05':0,'2026-10-06':12.5}}},{id:'r',provider:'copilot',billingMode:'premium_request',usageHistory:{unit:'requests',days:{'2026-10-06':3}}}];
+ assert.equal(activitySeries(accounts,'tokens',[],now).at(-1).total,100);
+ const credits=activitySeries(accounts,'credits',[],now);assert.equal(credits.at(-1).total,12.5);assert.equal(credits.at(-2).total,0);assert.equal(credits.at(-3).total,null);assert.equal(credits.at(-1).accounts,1);
+ assert.equal(activitySeries(accounts,'requests',[],now).at(-1).total,3);
+ const old=process.env.TZ;process.env.TZ='America/New_York';
+ try {const focus=activitySeries(accounts,'focus',[{accountId:'c',day:'2026-10-05',ms:120000},{accountId:'unselected',day:'2026-10-05',ms:360000}],Date.UTC(2026,9,6,1));assert.equal(focus.at(-1).day,'2026-10-05');assert.equal(focus.at(-1).total,2);} finally {if(old)process.env.TZ=old;else delete process.env.TZ;}
+});
 test('Copilot remaining credits use the selected allowance and clamp exhausted balances',()=>{
  const account={provider:'copilot',subscription:'Max',usage:{value:8266.609,unit:'ai-credits',period:'2026-10'}};
  const balance=copilotBalance(account,now);
