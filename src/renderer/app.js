@@ -84,7 +84,19 @@ function showManage(id) {
 function showKey(id) {
   const a=state.accounts.find(a=>a.id===id);
   const url = a.provider==='copilot'?'https://github.com/settings/personal-access-tokens/new':a.provider==='openai-api'?'https://platform.openai.com/settings/organization/admin-keys':'https://platform.claude.com/settings/admin-keys';
-  showDialog('Connect securely',`<p>${esc(PROVIDERS[a.provider].description)}</p><button class="link" data-action="external" data-url="${url}">Open provider credential settings ↗</button><form id="key-form"><label class="field"><span>${a.provider==='copilot'?'Fine-grained personal access token':'Organization admin key'}</span><input type="password" name="key" required autocomplete="off" spellcheck="false" maxlength="20000" placeholder="Enter credential here, never in chat"><div class="field-note">Encrypted with ${navigator.platform.startsWith('Win')?'Windows DPAPI':'your OS keychain'}. The saved key is never sent back to this screen.</div></label>${!state.secureStorage?'<div class="error">OS secure storage is unavailable. Unlock the keychain to continue.</div>':''}<div class="dialog-actions"><button type="button" data-action="manage" data-id="${id}">Back</button><button type="submit" class="primary" ${!state.secureStorage?'disabled':''}>Save & connect</button></div></form>`);
+  const setupGuide = a.provider === 'copilot' ? `
+    <section class="connection-guide" aria-labelledby="token-setup-title">
+      <h3 id="token-setup-title">Create your GitHub token</h3>
+      <ol>
+        <li><strong>Token name:</strong> <code>AI Usage Tracker</code></li>
+        <li><strong>Resource owner:</strong> your account.</li>
+        <li><strong>Expiration:</strong> 30 days is fine; reconnect when it expires.</li>
+        <li><strong>Repository access:</strong> leave <strong>Public repositories</strong> selected.</li>
+        <li>Add <strong>Account permissions → Plan → Read-only</strong>. No repository write permissions are needed. <button type="button" class="link" data-action="external" data-url="https://docs.github.com/en/rest/billing/usage#get-billing-ai-credit-usage-report-for-a-user">Required permission ↗</button></li>
+        <li>Generate the token, paste it into the password field below, then click <strong>Save &amp; connect</strong>.</li>
+      </ol>
+    </section>` : '';
+  showDialog('Connect securely',`<p>${esc(PROVIDERS[a.provider].description)}</p><button class="link" data-action="external" data-url="${url}">Open provider credential settings ↗</button>${setupGuide}<form id="key-form"><label class="field"><span>${a.provider==='copilot'?'Fine-grained personal access token':'Organization admin key'}</span><input type="password" name="key" required autocomplete="off" spellcheck="false" maxlength="20000" placeholder="Enter credential here, never in chat"><div class="field-note">Encrypted with ${navigator.platform.startsWith('Win')?'Windows DPAPI':'your OS keychain'}. The saved key is never sent back to this screen.</div></label>${!state.secureStorage?'<div class="error">OS secure storage is unavailable. Unlock the keychain to continue.</div>':''}<div class="dialog-actions"><button type="button" data-action="manage" data-id="${id}">Back</button><button type="submit" class="primary" ${!state.secureStorage?'disabled':''}>Save & connect</button></div></form>`);
   $('#key-form').addEventListener('submit',e=>runForm(e,async()=>{ const input=e.target.elements.key; const key=input.value; input.value=''; await call('connectKey',id,key); await load(); showManage(id); const a=state.accounts.find(a=>a.id===id); if(a.error) $('#dialog-error').innerHTML=`<div class="error">${esc(a.error)}</div>`; else toast('Connection refreshed.'); }));
 }
 function showSettings() {
