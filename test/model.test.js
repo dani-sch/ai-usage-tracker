@@ -3,10 +3,32 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount } from '../src/core/model.js';
+import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount,copilotAllowance,copilotBalance } from '../src/core/model.js';
 import { Store,Vault } from '../src/core/store.js';
 import { allowedExternal } from '../src/core/security.js';
 const now=Date.UTC(2026,9,6,14);
+test('Copilot remaining credits use the selected allowance and clamp exhausted balances',()=>{
+ const account={provider:'copilot',subscription:'Max',usage:{value:8266.609,unit:'ai-credits',period:'2026-10'}};
+ const balance=copilotBalance(account,now);
+ assert.equal(balance.allowance,20000);assert.ok(Math.abs(balance.remaining-11733.391)<1e-8);assert.equal(Math.round(balance.remainingPercent),59);assert.equal(balance.resetsAt,Date.UTC(2026,10,1));
+ assert.equal(copilotAllowance({...account,subscription:'GitHub Copilot Pro+'}),7000);
+ assert.equal(copilotAllowance({...account,subscription:'pro'}),1500);
+ assert.ok(Math.abs(copilotBalance({...account,monthlyCredits:10000},now).remainingPercent-17.33391)<1e-8);
+ const exhausted=copilotBalance({...account,monthlyCredits:8000},now);assert.equal(exhausted.remaining,0);assert.equal(exhausted.remainingPercent,0);assert.ok(exhausted.overage>266);
+ const zero=copilotBalance({...account,usage:{...account.usage,value:0}},now);assert.equal(zero.remainingPercent,100);
+});
+test('Copilot does not invent balances for unknown plans, legacy requests, or old periods',()=>{
+ const account={provider:'copilot',subscription:'Max',usage:{value:10,unit:'ai-credits',period:'2026-10'}};
+ for(const patch of [{provider:'codex'},{subscription:'Business'},{subscription:'__proto__'},{billingMode:'premium_request'},{usage:null},{usage:{...account.usage,unit:'requests'}},{usage:{...account.usage,value:NaN}},{usage:{...account.usage,value:-1}},{usage:{...account.usage,period:'2026-09'}}]) assert.equal(copilotBalance({...account,...patch},now),null);
+ assert.equal(copilotBalance(account,Date.UTC(2026,10,1)),null);
+ assert.equal(copilotBalance({...account,subscription:'Custom',monthlyCredits:100},now).remaining,90);
+});
+test('Copilot allowance validates and blank restores plan defaults',()=>{
+ const account={provider:'copilot',label:'Personal',subscription:'Max'};
+ assert.equal(validateAccount({...account,monthlyCredits:'25000'}).monthlyCredits,25000);
+ assert.equal(validateAccount({...account,monthlyCredits:''}).monthlyCredits,null);
+ for(const value of ['bad',-1,0,Infinity,1e10]) assert.throws(()=>validateAccount({...account,monthlyCredits:value}),/allowance/);
+});
 test('30 UTC days cross a month boundary; unavailable is distinct from zero',()=>{
  const days=lastDays(now);assert.equal(days.length,30);assert.equal(days[0],'2026-09-07');
  const series=tokenSeries([{tokens:{days:{'2026-10-06':0}}},{tokens:null}],now);assert.equal(series[0].total,null);assert.deepEqual(series.at(-1),{day:'2026-10-06',total:0,reporting:1,accounts:2});

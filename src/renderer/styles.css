@@ -11,4 +11,5 @@ dialog{width:min(540px,calc(100vw - 40px));max-height:88vh;border:1px solid #435
 .connection-guide strong{font-weight:600;color:#dce7de}
 .connection-guide code{font-family:inherit;color:var(--accent)}
 .connection-guide .link{font-size:inherit;line-height:inherit}
+.field>label{display:block;font-size:12px;margin-bottom:8px;color:#c8d3cc}
 @media(min-width:1500px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:1100px){#sidebar{width:185px;padding:25px 12px}#main{margin-left:185px;padding:24px}.brand{font-size:14px;padding:0 5px}.stat{padding:16px}.stat-value{font-size:26px}.intro h1{font-size:28px}.topbar-right{gap:10px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(prefers-reduced-motion:reduce){*{transition:none!important}}

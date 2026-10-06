@@ -47,6 +47,23 @@ export function validateAccount(input) {
   if (!label || label.length > 80) throw new Error('Use an account name of 1–80 characters.');
   const subscription = String(input.subscription ?? '').trim().slice(0, 80);
   const billingMode = input.billingMode === 'premium_request' ? 'premium_request' : 'ai_credit';
-  return { provider: input.provider, label, subscription, billingMode };
+  const allowance = input.monthlyCredits;
+  const monthlyCredits = allowance == null || String(allowance).trim() === '' ? null : Number(allowance);
+  if (input.provider === 'copilot' && monthlyCredits !== null && (!Number.isFinite(monthlyCredits) || monthlyCredits <= 0 || monthlyCredits > 1e9)) throw new Error('Enter a monthly credit allowance greater than 0, or leave it blank to use the plan default.');
+  return { provider: input.provider, label, subscription, billingMode, ...(input.provider === 'copilot' ? { monthlyCredits } : {}) };
+}
+// Published individual plan allowances checked October 6, 2026. Flex allotments can change.
+// Keep these as estimates with an editable override; they are not API-reported entitlements.
+export function copilotAllowance(account) {
+  if (account.provider !== 'copilot' || account.billingMode === 'premium_request') return null;
+  if (Number.isFinite(account.monthlyCredits) && account.monthlyCredits > 0) return account.monthlyCredits;
+  const plan = String(account.subscription || '').trim().toLowerCase().replace(/^(github\s+)?copilot\s+/, '');
+  return new Map([['pro', 1500], ['pro+', 7000], ['max', 20000]]).get(plan) ?? null;
+}
+export function copilotBalance(account, now = Date.now()) {
+  const allowance = copilotAllowance(account), usage = account.usage;
+  if (!allowance || usage?.unit !== 'ai-credits' || !Number.isFinite(usage.value) || usage.value < 0 || usage.period !== dayUTC(now).slice(0, 7)) return null;
+  const remaining = Math.max(0, allowance - usage.value), date = new Date(now);
+  return { allowance, remaining, used: usage.value, remainingPercent: remaining / allowance * 100, resetsAt: Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1), overage: Math.max(0, usage.value - allowance) };
 }
 export function finiteCount(n) { return Number.isSafeInteger(n) && n >= 0; }

@@ -6,7 +6,7 @@ A private Windows and macOS desktop dashboard for AI subscription accounts, repo
 
 - Multiple named accounts per provider, subscription/provider filters, automatic polling, manual refresh, and tray/menu-bar access.
 - Codex remaining quota windows and reset timestamps through the official app server.
-- GitHub Copilot personal billing usage, with AI-credit and legacy premium-request modes.
+- GitHub Copilot personal billing usage, with AI-credit and legacy premium-request modes. AI-credit accounts show estimated credits remaining and a percentage bar using the plan allowance or an editable override.
 - OpenAI and Anthropic organization API token reports, with pagination.
 - Optional Codex and Claude Code local logs for reported tokens.
 - Rolling 30-day token chart with exact hover/keyboard values and an accessible daily table.
@@ -27,7 +27,7 @@ npm start
 Use **Add account**, choose a provider, name the account, and optionally enter a plan label. Then:
 
 - **ChatGPT / Codex:** choose **Sign in with ChatGPT** and finish in your browser. Create another profile for another identity. If CLI discovery fails, choose its native executable in Settings. Existing CLI credentials are never imported. On Windows choose `codex.exe`, not an npm `.cmd` shim.
-- **GitHub Copilot:** choose **Connect securely** and enter a fine-grained personal token with **Plan: read** permission. Choose the applicable billing model in account details. Organization-paid seats are excluded from this personal endpoint.
+- **GitHub Copilot:** choose **Connect securely** and follow the on-screen token instructions with **Plan: read** permission. Choose the applicable billing model in account details. For AI credits, enter Pro, Pro+, or Max as the subscription to use the published allowance, or set **Monthly AI credit allowance** to the amount shown on your [GitHub AI usage page](https://github.com/settings/billing/ai_usage). Leave this field blank to use the plan default. Organization-paid seats are excluded from this personal endpoint.
 - **Claude:** choose **Select local logs**, typically `~/.claude/projects`, and confirm account attribution. Quota/reset fields remain unavailable.
 - **OpenAI API / Anthropic API:** enter the corresponding **organization admin key**. These are organization-wide reports, not subscription allowances. Do not add overlapping reports for the same organization twice.
 - **Other:** name any subscription and track focus time.
@@ -42,7 +42,7 @@ For Codex tokens, select a `sessions` folder from the CLI profile whose work you
 
 **Working time:** an explicit timer, one subscription at a time, not inference runtime or an estimate from tokens. It pauses after five minutes of OS inactivity, on lock, and on sleep. The grace period can include up to five minutes of inactivity. Checkpoints occur every 15 seconds; a crash can lose the last checkpoint interval. Timers never resume after restart; heartbeat gaps over one minute are discarded. Summaries use the local calendar at recording time, including DST.
 
-**Quotas:** only provider-reported windows become remaining percentages. Passing a reset time does not reset a displayed quota; the app waits for provider confirmation. GitHub exposes monthly used billing quantities but no allowance, so remaining/reset fields stay unavailable. Errors explicitly mark saved readings.
+**Quotas:** Codex displays provider-reported windows; passing a reset time does not reset a displayed quota until the provider confirms it. Copilot AI-credit balances are explicitly **estimated** by subtracting the reported current-month usage from an editable allowance. Published defaults checked October 6, 2026 are Pro 1,500, Pro+ 7,000, and Max 20,000 credits; GitHub's flex allotment can change. The scheduled reset is the first of the next month at 00:00 UTC, per [GitHub's individual billing documentation](https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing). Old-month reports never become a new-month balance, excess usage is shown separately, and unknown plans require a custom allowance. Legacy premium requests remain usage-only. Errors explicitly mark saved readings.
 
 ## Build and verify
 

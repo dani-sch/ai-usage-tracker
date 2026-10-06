@@ -17,7 +17,9 @@ The E2E provider response is a clearly synthetic GitHub fixture injected only by
 
 ## Remaining external validation
 
-- GitHub billing and OpenAI/Anthropic admin APIs are covered by contract tests, but authenticated reads for those providers have not been exercised here. They require appropriately scoped owner credentials entered in the app. The successful Codex live read does not establish availability for every provider or plan.
+Copilot balance update (2026-10-06): all 21 unit/integration tests pass on Windows, including estimated balances, custom allowances, exhausted plans, unknown plans, and month boundaries. All four desktop scenarios pass, including allowance edits and persistence across restart; the new scenario was rerun after correcting its input's accessible label. The screenshot was visually reviewed and the card checked at a 1000×680 window size. These local checks supplement the earlier native CI run above. The owner-provided screenshot also confirms a successful authenticated personal GitHub AI-credit usage read; remaining credits are still an estimate, not a provider-reported entitlement.
+
+- OpenAI/Anthropic admin APIs are covered by contract tests, but authenticated reads have not been exercised here. They require appropriately scoped owner credentials entered in the app. Successful Codex and personal GitHub reads do not establish availability for every provider or plan.
 - Native macOS UI, secure storage, and Intel/Apple-silicon packaging passed in CI. Signing/notarization and Keychain behavior across signed application updates still require owner-provided signing credentials and release validation.
 - Windows signing and Apple signing/notarization require owner-provided certificates. Public release publishing is not performed.
 - The build toolchain audit reports eight moderate findings in one transitive `sprintf-js` logging/proxy dependency chain. There are no production npm dependencies. See SECURITY.md.

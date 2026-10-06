@@ -6,6 +6,24 @@ import { dayUTC,lastDays,dayLocal } from '../../src/core/model.js';
 let directory,desktop,page;
 async function launch(){ const env={...process.env,AI_TRACKER_DATA_DIR:directory,AI_TRACKER_HIDDEN_TEST:'1'};delete env.ELECTRON_RUN_AS_NODE;desktop=await electron.launch({args:['.'],env});page=await desktop.firstWindow();await expect(page.getByRole('heading',{name:'Your AI, in view.'})).toBeVisible();await desktop.evaluate(({powerMonitor})=>{powerMonitor.getSystemIdleTime=()=>0;}); }
 test.afterEach(async()=>{await desktop?.close();fs.rmSync(directory,{recursive:true,force:true});});
+test('Copilot estimated remaining credits, allowance editing and restart persistence',async()=>{
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-copilot-balance-'));
+ const now=Date.now();
+ fs.writeFileSync(path.join(directory,'state.json'),JSON.stringify({version:1,settings:{pollSeconds:300,closeToTray:false},accounts:[{id:'00000000-0000-4000-a000-000000000003',provider:'copilot',label:'Fixture Copilot',subscription:'Max',billingMode:'ai_credit',quotas:[],usage:{value:8266.609,unit:'ai-credits',period:dayUTC(now).slice(0,7)},status:'ready',lastSuccess:now,nextPoll:now+999999}],segments:[]}));
+ await launch();
+ const card=page.locator('.account');
+ await expect(card).toContainText('59% left');await expect(card.locator('.billing')).toContainText('11,733.391');await expect(card).toContainText('AI credits remaining');
+ const meter=card.getByRole('meter');await expect(meter).toHaveAttribute('aria-label','Monthly AI credits · estimated remaining');
+ expect(Number(await meter.getAttribute('aria-valuenow'))).toBeCloseTo(58.666955);
+ await page.screenshot({path:'test-results/copilot-remaining-credits.png',fullPage:true});
+ await card.getByRole('button',{name:'Manage Fixture Copilot'}).click();
+ await page.getByRole('spinbutton',{name:'Monthly AI credit allowance (optional)',exact:true}).fill('10000');await page.getByRole('button',{name:'Save details',exact:true}).click();await expect(page.locator('#toast')).toHaveText('Account details saved.');await page.getByRole('button',{name:'Close dialog'}).click();
+ await expect(card).toContainText('17% left');await expect(card.locator('.billing')).toContainText('1,733.391');
+ await desktop.close();await launch();await expect(page.locator('.account')).toContainText('17% left');
+ await page.getByRole('button',{name:'Manage Fixture Copilot'}).click();await page.getByRole('spinbutton',{name:'Monthly AI credit allowance (optional)',exact:true}).fill('8000');await page.getByRole('button',{name:'Save details',exact:true}).click();await page.getByRole('button',{name:'Close dialog'}).click();await expect(page.locator('.account')).toContainText('0% left');await expect(page.locator('.account')).toContainText('266.609 credits beyond');
+ await page.getByRole('button',{name:'Manage Fixture Copilot'}).click();await page.getByRole('spinbutton',{name:'Monthly AI credit allowance (optional)',exact:true}).fill('');await page.getByRole('button',{name:'Save details',exact:true}).click();await page.getByRole('button',{name:'Close dialog'}).click();await expect(page.locator('.account')).toContainText('59% left');
+ await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1000,680));expect(await page.locator('.account').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+});
 test('desktop account lifecycle, filters, focus time, settings and restart persistence',async()=>{
  directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-desktop-'));await launch();
  await page.getByRole('button',{name:'Connect an account',exact:false}).click();
