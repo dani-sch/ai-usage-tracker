@@ -57,6 +57,14 @@ test('Codex cumulative records deduplicate copied sessions and respect day bound
  const t=new TokenAccumulator('codex',now);const event=(timestamp,total)=>({timestamp,type:'event_msg',payload:{type:'token_count',info:{total_token_usage:{total_tokens:total}}}});
  t.add(event('2026-10-05T23:59:00Z',100),'first','same');t.add(event('2026-10-05T23:59:00Z',100),'copy','same');t.add(event('2026-10-06T01:00:00Z',170),'first','same');t.add(event('2026-10-06T02:00:00Z',170),'first','same');const r=t.result();assert.equal(r['2026-10-05'],100);assert.equal(r['2026-10-06'],70);
 });
+test('local active time excludes long gaps and counts overlapping session events once',()=>{
+ const tally=new TokenAccumulator('codex',now);
+ const add=(session,minutes)=>tally.add({timestamp:new Date(now-3600000+minutes*60000).toISOString(),type:'event_msg',payload:{type:'user_msg'}},session,session);
+ for(const m of [0,2,4,20,21])add('a',m);
+ for(const m of [1,3,5])add('b',m);
+ add('single',30);
+ const r=tally.activityResult();assert.equal(r.intervals.reduce((n,[a,b])=>n+b-a,0),6*60000);assert.equal(r.intervals.length,2);
+});
 test('Claude streamed copies count each message once, preserving cached tokens',()=>{
  const t=new TokenAccumulator('claude',now);for(const output of [5,20,10])t.add({type:'assistant',timestamp:'2026-10-06T01:00:00Z',requestId:'req',message:{id:'msg',usage:{input_tokens:100,output_tokens:output,cache_read_input_tokens:30,cache_creation_input_tokens:10}}},'file');assert.equal(t.result()['2026-10-06'],160);
 });

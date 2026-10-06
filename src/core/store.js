@@ -38,7 +38,7 @@ export class Store {
     if (idleSeconds >= 300 || now - from > 60000 || now < from) { this.active = null; this.data.lastPause = 'Timer paused after inactivity or sleep. Start it when you return.'; }
     this.save();
   }
-  stop(reason = 'Timer stopped', now = Date.now(), idleSeconds = 0) { this.checkpoint(now, idleSeconds); this.active = null; this.data.lastPause = reason; this.save(); }
+  stop(reason = 'Timer stopped', now = Date.now(), idleSeconds = 0) { if (!this.active) return; this.checkpoint(now, idleSeconds); this.active = null; this.data.lastPause = reason; this.save(); }
 }
 
 export class Vault {

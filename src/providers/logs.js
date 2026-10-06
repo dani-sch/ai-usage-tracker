@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { dayUTC, lastDays, finiteCount } from '../core/model.js';
+import { dayUTC, lastDays, finiteCount, mergeIntervals } from '../core/model.js';
 
 async function* files(directory, budget, depth = 0) {
   if (depth > 15) throw new Error('Log folder nesting is too deep. Select a narrower folder.');
@@ -17,10 +17,15 @@ async function* files(directory, budget, depth = 0) {
   }
 }
 export class TokenAccumulator {
-  constructor(provider, now = Date.now()) { this.provider = provider; this.days = Object.fromEntries(lastDays(now).map(d=>[d,0])); this.events = new Map(); this.recognized = 0; this.invalid = 0; }
+  constructor(provider, now = Date.now()) { this.provider = provider; this.now=now;this.activity=new Map();this.days = Object.fromEntries(lastDays(now).map(d=>[d,0])); this.events = new Map(); this.recognized = 0; this.invalid = 0; }
   add(event, file, session) {
     if (!event.timestamp || !Number.isFinite(Date.parse(event.timestamp))) return;
     const day = dayUTC(event.timestamp);
+    const activityRecord=this.provider==='codex'?event.type==='event_msg'&&['user_msg','token_count','task_started','task_complete','turn_aborted'].includes(event.payload?.type):['user','assistant'].includes(event.type);
+    if(activityRecord) {
+      const timestamp=Date.parse(event.timestamp),cutoff=this.now-31*86400000;
+      if(timestamp>=cutoff&&timestamp<=this.now) { const key=session||file;if(!this.activity.has(key))this.activity.set(key,new Set());this.activity.get(key).add(timestamp); }
+    }
     if (this.provider === 'codex' && event.type === 'event_msg' && event.payload?.type === 'token_count') {
       const usage = event.payload.info?.total_token_usage;
       if (!usage) return; // Rate-limit-only records are not token records.
@@ -56,6 +61,14 @@ export class TokenAccumulator {
     }
     return this.days;
   }
+  activityResult() {
+    const intervals=[];
+    for(const timestamps of this.activity.values()) {
+      const sorted=[...timestamps].sort((a,b)=>a-b);
+      for(let i=1;i<sorted.length;i++)if(sorted[i]-sorted[i-1]<=300000)intervals.push([sorted[i-1],sorted[i]]);
+    }
+    return { intervals:mergeIntervals(intervals), source:'Estimated from local session events; gaps over 5 minutes excluded; overlapping sessions counted once.' };
+  }
 }
 export async function readLogs(directory, provider, now = Date.now()) {
   const tally = new TokenAccumulator(provider, now); const budget = { files: 0, entries: 0, bytes: 0 }; let malformed = 0, oversized = 0;
@@ -80,5 +93,5 @@ export async function readLogs(directory, provider, now = Date.now()) {
   if (!tally.recognized) throw new Error('No reported token records found. Select the correct logs folder; token usage remains unavailable.');
   const days = tally.result();
   const warnings = [malformed ? `${malformed} incomplete or unreadable records skipped; totals may be partial.` : '', oversized ? `${oversized} oversized records skipped; totals may be partial.` : ''].filter(Boolean);
-  return { days, source: provider === 'codex' ? 'Local Codex session logs' : 'Local Claude Code logs', scope: 'Selected folder only • UTC days • not account-wide', fetchedAt: now, warning: warnings.join(' ') || null };
+  return { days, activity:tally.activityResult(), source: provider === 'codex' ? 'Local Codex session logs' : 'Local Claude Code logs', scope: 'Selected folder only • UTC days • not account-wide', fetchedAt: now, warning: warnings.join(' ') || null };
 }

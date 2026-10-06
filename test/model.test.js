@@ -3,10 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount,copilotAllowance,copilotBalance,activitySeries } from '../src/core/model.js';
+import { lastDays,tokenSeries,timeTotals,splitInterval,validateAccount,copilotAllowance,copilotBalance,activitySeries,estimatedTime,liveSegments } from '../src/core/model.js';
 import { Store,Vault } from '../src/core/store.js';
 import { allowedExternal } from '../src/core/security.js';
 const now=Date.UTC(2026,9,6,14);
+test('automatic time merges overlapping sessions and preserves local midnight boundaries',()=>{
+ const from=new Date(2026,9,5,23,59).getTime(),end=new Date(2026,9,6,0,4).getTime();
+ const accounts=[{tokens:{activity:{intervals:[[from,from+180000],[from+120000,from+240000]]}}},{tokens:{activity:{intervals:[[from+180000,end]]}}}];
+ const r=estimatedTime(accounts,end);assert.equal(r.todayMs,240000);assert.equal(r.monthMs,300000);assert.equal(r.reporting,2);
+ assert.equal(estimatedTime([],end).reporting,0);assert.equal(activitySeries(accounts,'active',[],end).at(-1).total,4);
+});
+test('live focus totals include only uncheckpointed time without mutating saved segments',()=>{
+ const saved=[{accountId:'a',day:'2026-10-06',ms:1000}], active={accountId:'a',checkpoint:now};
+ assert.equal(liveSegments(saved,active,now+2000).reduce((n,s)=>n+s.ms,0),3000);assert.equal(saved.length,1);
+ assert.equal(liveSegments(saved,active,now+61000),saved);assert.equal(liveSegments(saved,null,now),saved);
+});
 test('activity charts keep units separate and missing history distinct from zero',()=>{
  const accounts=[{id:'c',provider:'codex',tokens:{days:{'2026-10-06':100}}},{id:'g',provider:'copilot',usageHistory:{unit:'ai-credits',days:{'2026-10-05':0,'2026-10-06':12.5}}},{id:'r',provider:'copilot',billingMode:'premium_request',usageHistory:{unit:'requests',days:{'2026-10-06':3}}}];
  assert.equal(activitySeries(accounts,'tokens',[],now).at(-1).total,100);

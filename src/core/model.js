@@ -26,6 +26,22 @@ export function timeTotals(segments, ids, now = Date.now()) {
   }
   return { todayMs, monthMs, byAccount };
 }
+export function liveSegments(segments, active, now = Date.now()) {
+  if (!active || now < active.checkpoint || now-active.checkpoint>60000) return segments;
+  return [...segments,...splitInterval(active.accountId,active.checkpoint,now)];
+}
+export function mergeIntervals(intervals) {
+  const sorted=intervals.filter(r=>Array.isArray(r)&&r.length===2&&r.every(Number.isFinite)&&r[1]>r[0]).map(r=>[...r]).sort((a,b)=>a[0]-b[0]);
+  const result=[];
+  for(const [start,end] of sorted) { const last=result.at(-1);if(last&&start<=last[1])last[1]=Math.max(last[1],end);else result.push([start,end]); }
+  return result;
+}
+export function estimatedTime(accounts, now = Date.now()) {
+  const reporting=accounts.filter(a=>Array.isArray(a.tokens?.activity?.intervals));
+  const intervals=mergeIntervals(reporting.flatMap(a=>a.tokens.activity.intervals));
+  const segments=intervals.flatMap(([start,end])=>splitInterval('activity',start,Math.min(end,now)));
+  return { ...timeTotals(segments,['activity'],now), reporting:reporting.length, segments };
+}
 export function splitInterval(accountId, from, to) {
   const segments = [];
   while (from < to) {
@@ -43,6 +59,10 @@ export function tokenSeries(accounts, now = Date.now()) {
 }
 export function activitySeries(accounts, metric = 'tokens', segments = [], now = Date.now()) {
   if (metric === 'tokens') return tokenSeries(accounts, now);
+  if (metric === 'active') {
+    const activity=estimatedTime(accounts,now), local=new Date(now);
+    return lastDays(Date.UTC(local.getFullYear(),local.getMonth(),local.getDate())).map(day=>({day,total:activity.reporting?activity.segments.filter(s=>s.day===day).reduce((n,s)=>n+s.ms/60000,0):null,reporting:activity.reporting,accounts:accounts.length}));
+  }
   const ids = new Set(accounts.map(a=>a.id));
   const eligible = accounts.filter(a=>a.provider === 'copilot' && (metric === 'requests' ? a.billingMode === 'premium_request' : a.billingMode !== 'premium_request'));
   const unit = metric === 'requests' ? 'requests' : 'ai-credits';

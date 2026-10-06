@@ -10,9 +10,12 @@ test('side panel switches daily units, resizes, pins and handles narrow layouts'
  directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-panel-'));
  const now=Date.now(),dates=lastDays(now),days=Object.fromEntries(dates.map((d,i)=>[d,(i%7)*1200]));
  fs.writeFileSync(path.join(directory,'state.json'),JSON.stringify({version:1,settings:{pollSeconds:300,closeToTray:false},accounts:[
-  {id:'00000000-0000-4000-a000-000000000001',provider:'codex',label:'Personal Codex',subscription:'Pro',quotas:[{name:'codex · 7 day',remainingPercent:86,resetsAt:now+86400000}],tokens:{days,source:'Local test fixture',scope:'Selected folder',fetchedAt:now},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999},
+  {id:'00000000-0000-4000-a000-000000000001',provider:'codex',label:'Personal Codex',subscription:'Pro',quotas:[{name:'codex · 7 day',remainingPercent:86,resetsAt:now+86400000}],tokens:{days,activity:{intervals:[[now-120000,now-60000]]},source:'Local test fixture',scope:'Selected folder',fetchedAt:now},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999},
   {id:'00000000-0000-4000-a000-000000000002',provider:'copilot',label:'Personal Copilot',subscription:'Max',quotas:[],usage:{unit:'ai-credits',value:8266.609,period:dayUTC(now).slice(0,7)},usageHistory:{unit:'ai-credits',days:Object.fromEntries(dates.map((d,i)=>[d,i*5.5]))},status:'ready',lastSuccess:now,lastAttempt:now,nextPoll:now+999999}],segments:[]}));
  await launch();expect(await page.evaluate(()=>innerWidth)).toBeLessThan(500);
+ await expect(page.locator('#active-today')).not.toHaveText('—');
+ const visibleCards=await page.locator('.account').evaluateAll(cards=>cards.every(card=>card.getBoundingClientRect().bottom<document.querySelector('.panel-tools').getBoundingClientRect().top));expect(visibleCards).toBe(true);
+ await page.getByRole('tab',{name:'Active time',exact:true}).click();await expect(page.locator('.activity-source')).toContainText('Estimated time between local activity events');
  await page.getByRole('tab',{name:'AI credits',exact:true}).click();await page.locator('#day-29').click();await expect(page.locator('#chart-tooltip')).toContainText('159.5 AI credits');
  await page.getByRole('button',{name:'Daily values',exact:true}).click();await expect(page.locator('.token-table tbody tr').first()).toContainText('159.5');await page.getByRole('button',{name:'Close dialog'}).click();
  await page.getByRole('tab',{name:'Tokens',exact:true}).click();await page.locator('#day-29').focus();await expect(page.locator('#chart-tooltip')).toContainText('1,200 tokens');

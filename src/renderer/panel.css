@@ -113,3 +113,34 @@ dialog { width:min(540px,calc(100vw - 24px));padding:19px;border-radius:14px;max
   .brand .status-live { font-size:8px; }
   .metric-tabs button { padding:4px 8px; }
 }
+.compact-account { padding:10px 12px; }
+.compact-account .account-head { margin-bottom:4px;gap:7px; }
+.compact-account .provider-icon { width:25px;height:25px;border-radius:7px;font-size:9px; }
+.compact-account .account-heading h3 { font-size:12px;line-height:1.5; }
+.plan-label { color:var(--muted);font-size:9px;font-weight:400;margin-left:5px; }
+.connection-dot { width:5px;height:5px;border-radius:50%;background:#a5cc89;flex-shrink:0; }
+.connection-dot.warning { background:#e6b697; }
+.compact-account .quota { margin:6px 0; }
+.compact-account .quota-label { font-size:9px;margin-bottom:5px; }
+.compact-account .quota-label strong { font-size:16px; }
+.compact-account .reset { font-size:8px;margin-top:4px; }
+.compact-account .billing { font-size:17px;margin:5px 0 0;letter-spacing:-.3px; }
+.compact-account .billing small { font-size:9px; }
+.compact-account .account-bottom { margin-top:7px;padding-top:6px;gap:8px; }
+.account-activity { flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:9px;color:var(--muted); }
+.account-focus-total:empty { display:none; }
+.card-details { font-size:9px; }
+.compact-account .account-bottom .small { font-size:9px;padding:4px 6px;white-space:nowrap; }
+.compact-account .source-note { margin:4px 0;font-size:9px; }
+.compact-account .unavailable { padding:7px; }
+.compact-account .error { padding:7px;margin:5px 0;font-size:10px; }
+#sidebar { padding-top:12px; }
+.brand { margin-bottom:10px; }
+#sidebar nav { padding-bottom:9px; }
+#main { padding-top:10px; }
+.intro { margin-bottom:10px; }
+.intro h1 { font-size:15px; }
+.summary { margin-bottom:14px; }
+.stat { padding:10px 12px; }
+.stat-value { font-size:23px;margin:6px 0 3px; }
+.cards { gap:8px;margin-bottom:14px; }
