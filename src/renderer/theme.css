@@ -1,0 +1,133 @@
+/* Warm analytics theme. Compact mode stays a practical desktop side panel. */
+:root{color-scheme:light;--bg:#efede9;--surface:#faf9f6;--line:#deddd8;--muted:#747681;--text:#111421;--accent:#c63769;--bad:#a9372e;font-family:"Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif}
+body{background:var(--bg);color:var(--text)}
+button{background:#faf9f6;border-color:#dcdad6;color:var(--text);border-radius:12px}
+button:hover{background:#fff;border-color:#aaa6a3}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #d74778;outline-offset:3px}
+.primary{background:#111421;color:#fff;border-color:#111421;border-radius:24px}
+.primary:hover{background:#2a2d40;border-color:#2a2d40}
+.quiet{background:transparent}
+.link{background:none;color:#b72d5b;border:0;border-radius:4px}
+.link:hover{background:#f9e4e8;color:#902345}
+.danger{color:#a7332c;border-color:#e4b5ad;background:#fff2ee}
+#sidebar{background:#111421;border-color:#242738;backdrop-filter:none;color:#faf9f6;padding:15px 16px 0}
+.brand{font-size:16px;letter-spacing:-.5px;margin-bottom:13px}
+.brand-mark{background:linear-gradient(145deg,#ff8457,#ec509e);color:#fff;border-radius:11px;box-shadow:0 5px 18px #ee678022}
+.brand-sub{color:#b7bac8;letter-spacing:1.5px;font-size:8px}
+.brand .status-live{color:#b7bac8}
+.status-live .dot{background:#f7979b}
+#sidebar nav{gap:6px;padding-bottom:12px;scrollbar-color:#535669 transparent}
+.nav-item{color:#c7c9d3;border-color:#373a4b;padding:7px 10px;background:transparent}
+.nav-item:hover{background:#262a3c;border-color:#656777}
+.nav-item.selected{background:#eeede8;border-color:#eeede8;color:#171a28}
+.nav-count{color:inherit;opacity:.65}
+#main{padding:17px 16px 80px}
+.intro{margin-bottom:16px}
+.intro h1{font-size:20px;font-weight:650;letter-spacing:-.65px}
+.intro p{font-size:10px;color:#767983}
+.actions button{border-radius:50%;padding:9px;background:transparent;border-color:#d6d4d0}
+.actions button:last-child{background:#111421;border-color:#111421;color:white}
+.summary{gap:10px;margin-bottom:19px}
+.stat{background:#faf9f6;border:0;padding:15px 14px;border-radius:20px;box-shadow:0 5px 20px #25253d03}
+.stat:first-child{position:relative;overflow:hidden;background:linear-gradient(115deg,#f47a55 0%,#ed548f 100%);border:0}
+.stat:first-child::after{content:"";position:absolute;width:100px;height:100px;border:1px solid #ffffff28;border-radius:50%;right:-36px;bottom:-55px;pointer-events:none;box-shadow:0 0 0 16px #ffffff08,0 0 0 32px #ffffff06}
+.eyebrow{font-size:9px;letter-spacing:.65px;color:#565c68;font-weight:600}
+.stat-value{font-size:28px;font-weight:650;letter-spacing:-1px;margin:8px 0 5px}
+.stat:first-child .stat-value,.stat:first-child .eyebrow,.stat:first-child .stat-note{color:#fff}
+.stat-note{color:#656b76;font-size:9px;line-height:1.5}
+.section-head{margin-bottom:12px}
+.section-head h2{font-size:13px;font-weight:600}
+select{background:#faf9f6;border-color:#dfddd8;color:var(--text);border-radius:20px}
+.filter select{border:0;border-radius:20px;padding:7px 22px 7px 11px}
+.cards{gap:10px;margin-bottom:18px}
+.account,.compact-account{background:#faf9f6;border:1px solid #f8f7f4;border-radius:20px;padding:12px 14px;box-shadow:0 5px 22px #29223803}
+.account.focused{border-color:#d94476;box-shadow:0 0 0 2px #e75e8214}
+.compact-account .provider-icon{height:28px;width:28px;border-radius:10px;background:#f6d5d2;color:#8a3940;font-size:9px}
+.compact-account .account-heading h3{font-size:13px;font-weight:650}
+.plan-label{font-size:9px;color:#767680}
+.manage{color:#252638;background:none}
+.connection-dot{background:#318569}.connection-dot.warning{background:#cb6b35}
+.compact-account .quota{margin:9px 0}
+.compact-account .quota-label{font-size:9px;color:#737783}
+.compact-account .quota-label strong{font-size:19px;letter-spacing:-.5px;font-weight:650;color:#141724}
+.track{background:#e9e6e2;height:6px;border-radius:20px}
+.fill{background:linear-gradient(90deg,#f57958,#ed529b);border-radius:20px}
+.compact-account .reset{color:#727784;font-size:8px;margin-top:5px}
+.compact-account .billing{font-size:20px;font-weight:650;color:#171a28}
+.billing small{font-weight:400;color:#696e7a}
+.compact-account .source-note{color:#717783}
+.compact-account .account-bottom{border-color:#e9e6e1;margin-top:9px;padding-top:8px}
+.account-activity{color:#737783}
+.account-bottom .small{border-radius:20px;background:#eeece7;border-color:#eeece7;color:#242839}
+.account-bottom .primary{background:#111421;color:#fff}
+.unavailable,.compact-account .unavailable{border:0;background:#efede8;color:#747984;border-radius:12px;padding:8px 10px}
+.unavailable strong{color:#454c5a;font-weight:600}
+.error{background:#fff0e9;border-color:#edc5b4;color:#953a29}
+.chart-panel{background:#faf9f6;border:0;border-radius:23px;padding:17px;box-shadow:0 5px 22px #29223803}
+.chart-header h2{font-size:14px;font-weight:600}.chart-header p{color:#7c808a}
+.chart-total{font-size:25px;font-weight:600;color:#171a28}.chart-total small{font-weight:400;color:#767c86}
+.metric-tabs{gap:4px;flex-wrap:wrap;margin:16px 0 8px}
+.metric-tabs button{border:0;border-radius:20px;color:#6c707d;background:#eeece8;padding:5px 10px}
+.metric-tabs button[aria-selected=true]{background:#111421;color:#fff;border-color:#111421}
+.chart-stage{height:148px;margin-top:17px}
+.chart-bars{border-color:#d7d5d0;background:repeating-linear-gradient(to top,transparent 0,transparent calc(50% - 1px),#eae7e2 calc(50% - 1px),#eae7e2 50%);gap:4px}
+.bar{border-radius:7px 7px 3px 3px;background:#cfccc5;max-width:20px}
+.bar-hit:hover,.bar-hit:focus-visible{background:#f5e7e6}
+.bar-hit:hover .bar,.bar-hit:focus-visible .bar,.bar-hit.active .bar,.bar-hit:last-child .bar:not(.unknown):not(.zero){background:linear-gradient(to top,#eb509b,#fb7b57)}
+.bar.unknown{background:transparent;border-color:#a6a29c}
+.y-axis,.chart-labels{color:#767c86}
+.chart-tooltip{color:#525866;font-size:10px}
+.activity-source{border-color:#e8e5df;color:#767b85}.activity-source summary{color:#a15833}
+.chart-footer{border-color:#e8e5df;color:#767b85}
+.panel-tools{background:#efede9ed;border-color:#dddad5;backdrop-filter:blur(14px);padding:11px 14px}
+.panel-tools button{border:0;border-radius:20px;background:#faf9f6;color:#303543}
+.panel-tools button[aria-pressed=true]{background:#111421;color:#fff;border-color:#111421}
+.focus-banner{background:#f8dfe1;border-color:#f0c1c7;color:#4d3741}.focus-banner strong{color:#a12552}
+.empty{background:#faf9f6;border-color:#d3cbc5;border-radius:20px}.empty p{color:#747984}
+dialog{background:#faf9f6;border:1px solid #e3dfd9;border-radius:24px;padding:23px;box-shadow:0 25px 100px #11142140;color:#171a28}
+dialog::backdrop{background:#14172466;backdrop-filter:blur(7px)}
+.dialog-head h2{font-size:21px;font-weight:650;letter-spacing:-.65px}.close{color:#686e7a}
+dialog p,.field-note,.detail-row span{color:#666d7b}
+.field>span,.field>label,.check{color:#454d5b}
+.field input,.field select{background:#fff;border-color:#d8d4cd;color:#171a28;border-radius:12px}
+.field input::placeholder{color:#8a8d96}
+.provider-note,.connection-guide{background:#f0ede7;border:0;border-radius:14px;color:#59616e}
+.connection-guide strong{color:#303543}.connection-guide code{color:#b62e5e}
+.connection-guide li{margin-left:14px;padding-left:3px}
+.detail-row,.divider,.token-table td,.token-table th{border-color:#e2ded7}
+.check input{accent-color:#c63769}
+#toast{background:#171a28;border-color:#171a28;color:#fff;border-radius:14px;box-shadow:0 8px 30px #15162c22}
+@media(min-width:700px){
+ #sidebar{position:fixed;inset:0 auto 0 0;width:176px;padding:28px 14px;border:0}
+ .brand{flex-wrap:wrap;gap:10px;font-size:16px;padding:0 5px;margin-bottom:36px}
+ .brand-mark{height:34px;width:34px;font-size:25px}
+ .brand-sub{font-size:7px;letter-spacing:1px}
+ .brand .status-live{width:100%;margin:8px 0 0;font-size:9px;gap:6px}
+ #sidebar nav{display:flex;flex-direction:column;gap:8px;overflow:visible}
+ .nav-item{width:100%;display:flex;white-space:normal;padding:12px 10px;font-size:10px;gap:7px;border-color:transparent;border-radius:18px}
+ .nav-item.selected{background:#e8e7e3;color:#171a28;box-shadow:0 4px 14px #07090f15}
+ .nav-count{margin-left:auto}
+ #main{margin:0 0 0 176px;max-width:none;padding:28px 26px 88px}
+ .intro{margin-bottom:25px}.intro h1{font-size:29px;letter-spacing:-1px}.intro p{font-size:11px}
+ .summary{gap:17px;margin-bottom:24px}.stat{padding:23px;border-radius:26px}.stat-value{font-size:36px;margin:16px 0 9px}.eyebrow{font-size:11px;letter-spacing:0;text-transform:none}.stat-note{font-size:10px}
+ .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+ .panel-tools{left:176px;justify-content:flex-end;gap:8px;padding:14px 26px}
+ .chart-stage{height:200px}
+ #toast{left:calc(50% + 88px)}
+}
+@media(min-width:1000px){
+ #main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(290px,.9fr);column-gap:24px;row-gap:22px;align-items:start}
+ .intro{grid-column:1/-1;margin:0 0 4px}.focus-banner,.pause-note{grid-column:1/-1;margin:0}
+ .summary{grid-column:1;margin:0;gap:14px}.stat{padding:21px 18px;min-height:152px}.stat-value{font-size:33px}
+ #main>section[aria-labelledby="accounts-title"]{grid-column:1}
+ .section-head h2{font-size:15px}.section-head{margin-bottom:16px}
+ .cards{grid-template-columns:1fr;margin:0;gap:14px}
+ .compact-account{padding:16px 19px;border-radius:24px}.compact-account .account-head{margin-bottom:8px}.compact-account .quota-label strong{font-size:22px}
+ .compact-account .quota-label{font-size:11px}.compact-account .reset{font-size:10px}.compact-account .billing{font-size:24px}.compact-account .account-heading h3{font-size:14px}
+ .chart-panel{grid-column:2;grid-row:2/span 2;padding:23px 20px;border-radius:26px;align-self:stretch;display:flex;flex-direction:column}
+ #main:has(.focus-banner) .chart-panel,#main:has(.pause-note) .chart-panel{grid-row:3/span 2}
+ .chart-stage{height:235px;flex:1;min-height:190px;max-height:320px;margin-top:26px}
+ .chart-header h2{font-size:16px}.chart-footer{margin-top:16px}.activity-source{margin-top:12px}.chart-tooltip{margin:15px 0 6px}
+}
+@media(max-width:380px){.stat{padding:12px}.stat-value{font-size:25px}.intro h1{font-size:18px}.brand .status-live{font-size:8px}.compact-account{padding:11px}.quota-label strong{font-size:18px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}

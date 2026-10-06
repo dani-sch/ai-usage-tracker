@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, session, Tray, Menu, nativeImage, powerMonitor, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, session, Tray, Menu, nativeImage, powerMonitor, screen, nativeTheme } from 'electron';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store, Vault } from './core/store.js';
@@ -14,6 +14,7 @@ const profileDirectory = app.commandLine.getSwitchValue('user-data-dir');
 if (profileDirectory) app.setPath('userData', path.resolve(profileDirectory));
 if (!app.isPackaged && process.env.AI_TRACKER_DATA_DIR) app.setPath('userData',path.resolve(process.env.AI_TRACKER_DATA_DIR));
 app.setName('AI Usage Tracker');
+nativeTheme.themeSource='light';
 let window, tracker, tray, claudeWeb, quitting = false, tick, poll;
 const rendererURL = pathToFileURL(path.join(here,'renderer','index.html')).href;
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -37,7 +38,7 @@ async function boot() {
   session.defaultSession.setPermissionCheckHandler(()=>false);
   const area=screen.getPrimaryDisplay().workArea;
   const panelWidth=Math.min(460,area.width), panelHeight=Math.min(900,area.height);
-  window = new BrowserWindow({ width: panelWidth, height: panelHeight, x:area.x+area.width-panelWidth, y:area.y, minWidth: 360, minHeight: 480, show: false, backgroundColor: '#101415', title: 'AI Usage Tracker', icon: path.join(here,'assets','icon.png'), webPreferences: { preload: path.join(here,'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
+  window = new BrowserWindow({ width: panelWidth, height: panelHeight, x:area.x+area.width-panelWidth, y:area.y, minWidth: 360, minHeight: 480, show: false, backgroundColor: '#efede9', title: 'AI Usage Tracker', icon: path.join(here,'assets','icon.png'), webPreferences: { preload: path.join(here,'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true } });
   window.setAlwaysOnTop(!!tracker.store.data.settings.alwaysOnTop);
   window.webContents.setWindowOpenHandler(()=>({ action:'deny' }));
   window.webContents.on('will-navigate', event=>event.preventDefault());

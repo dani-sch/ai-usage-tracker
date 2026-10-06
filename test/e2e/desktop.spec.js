@@ -2,6 +2,7 @@ import { test,expect,_electron as electron } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import net from 'node:net';
 import { CLAUDE_EXTENSION_ID } from '../../src/providers/claude-web-config.js';
 import { dayUTC,lastDays,dayLocal } from '../../src/core/model.js';
 let directory,desktop,page;
@@ -25,8 +26,9 @@ test('side panel switches daily units, resizes, pins and handles narrow layouts'
  await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:'test-results/compact-panel.png',fullPage:true});
  await page.getByRole('button',{name:'Pin on top',exact:true}).click();await expect(page.getByRole('button',{name:'Unpin',exact:true})).toHaveAttribute('aria-pressed','true');expect(await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop())).toBe(true);
  await page.getByRole('button',{name:'Resize view',exact:true}).click();await expect.poll(()=>page.evaluate(()=>innerWidth)).toBeGreaterThan(600);
+ await page.screenshot({path:'test-results/analytics-expanded.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'Resize view',exact:true}).click();await expect.poll(()=>page.evaluate(()=>innerWidth)).toBeLessThan(500);
- await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(360,640));expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(360,640));await page.screenshot({path:'test-results/analytics-narrow.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.getByRole('button',{name:'Settings',exact:true}).click();await expect(page.locator('#dialog-title')).toHaveText('Settings');await page.getByRole('button',{name:'Close dialog'}).click();
  await desktop.close();await launch();expect(await desktop.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isAlwaysOnTop())).toBe(true);
 });
@@ -104,7 +106,10 @@ test('Claude Code browser sign-in remains available and handles success, cancel 
 });
 
 test('Claude Free website setup displays reported remaining limits and revokes the companion',async()=>{
- directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-free-'));await launch();
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-free-'));
+ // Choose an unused test port so the real desktop app can remain open.
+ const probe=net.createServer();await new Promise(resolve=>probe.listen(0,'127.0.0.1',resolve));const testPort=probe.address().port;await new Promise(resolve=>probe.close(resolve));
+ fs.writeFileSync(path.join(directory,'state.json'),JSON.stringify({version:1,settings:{claudeBridgePort:testPort},accounts:[],segments:[]}));await launch();
  await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Free Claude');await page.getByRole('textbox',{name:'Subscription / plan (optional)',exact:true}).fill('free');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
  await page.getByRole('button',{name:'Connect Claude website · Free & paid',exact:true}).click();await expect(page.locator('#dialog')).toContainText('No Claude Code subscription is needed');await page.getByRole('button',{name:'Create connection code',exact:true}).click();
  const code=await page.getByRole('textbox',{name:'Browser companion connection code',exact:true}).inputValue();const [port,token]=code.split('.');const headers={Origin:`chrome-extension://${CLAUDE_EXTENSION_ID}`,Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
