@@ -10,13 +10,15 @@ Environment: Windows 11 x64, Node.js 24.14.0, Electron 44.5.1, electron-builder 
 - Real installed **Codex CLI 0.160.0** app-server initialization and `account/read` in a fresh isolated home with explicit keyring configuration. Account is signed out. Existing credentials were not accessed.
 - **Windows x64 NSIS installer built successfully.** Default build is unsigned; Authenticode status is `NotSigned`. Installer is in `release/AI-Usage-Tracker-0.1.0-win-x64.exe`.
 - **Packaged executable smoke test passed:** production entry point, isolated user-data directory, empty dashboard, real OS encryption availability, and sandboxed renderer. Test data did not enter the production profile.
+- **Native GitHub CI passed on Windows and macOS** for implementation commit `5ef947a80e5a16c79b400785ea683c7001a98736`: syntax checks, all 18 unit/integration tests, all 3 Electron E2E tests, native packaging, and artifact upload. macOS produced Intel and Apple-silicon DMG/ZIP files. [Successful run](https://github.com/dani-sch/ai-usage-tracker/actions/runs/37502771800).
+- **Authenticated Codex verification passed in the packaged Windows app.** The owner completed the official browser sign-in, and the app successfully fetched a provider quota window and reset timestamp with ready status and no error. Only redacted status/counts were inspected; no credential or personal account identifier is included in this record.
 
 The E2E provider response is a clearly synthetic GitHub fixture injected only by the test process. Native folder selection is substituted with a temporary test folder. OS inactivity is fixed at zero in the interaction test because hidden Playwright input does not reset Windows' idle counter; actual idle/suspend behavior is covered by deterministic timer tests. Fixtures and these test substitutions are not bundled with the app. OS encryption is real, not substituted, in the desktop test.
 
 ## Remaining external validation
 
-- Authenticated quota/billing/admin API reads require the owner to sign in or enter the correct scoped credential in the application. No live account secrets were supplied to this task. The app-server handshake and provider contract tests do not establish successful authenticated reporting for every plan.
-- macOS Intel/Apple-silicon packaging, Keychain behavior, and native UI execution require a Mac. Build targets, entitlements, and a native macOS CI job are supplied but were not run on this Windows host.
+- GitHub billing and OpenAI/Anthropic admin APIs are covered by contract tests, but authenticated reads for those providers have not been exercised here. They require appropriately scoped owner credentials entered in the app. The successful Codex live read does not establish availability for every provider or plan.
+- Native macOS UI, secure storage, and Intel/Apple-silicon packaging passed in CI. Signing/notarization and Keychain behavior across signed application updates still require owner-provided signing credentials and release validation.
 - Windows signing and Apple signing/notarization require owner-provided certificates. Public release publishing is not performed.
 - The build toolchain audit reports eight moderate findings in one transitive `sprintf-js` logging/proxy dependency chain. There are no production npm dependencies. See SECURITY.md.
 
