@@ -56,6 +56,9 @@ async function boot() {
   });
   handle('clear-logs',id=>tracker.clearLogs(id));
   handle('claude-status',()=>claudeStatus());
+  handle('claude-login',id=>tracker.beginClaudeLogin(id));
+  handle('claude-cancel',()=>tracker.cancelClaudeLogin());
+  handle('claude-open-browser',async()=>{const url=tracker.claudeLogin?.client.url;if(!url)throw new Error('The sign-in page is not ready yet. Try again in a moment.');await openExternal(url);});
   handle('link-claude',async(id,expectedEmail)=> {
     if(tracker.store.account(id).provider!=='claude')throw new Error('Select a Claude account.');
     const identity=await claudeStatus();

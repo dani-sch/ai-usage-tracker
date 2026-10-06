@@ -82,8 +82,22 @@ test('Claude account preview requires confirmation and handles signed-out profil
  directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-account-'));await launch();
  await desktop.evaluate(({ipcMain})=>{ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:true,email:'fixture@example.test',subscription:'max'}}));});
  await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Personal Claude');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
- await page.getByRole('button',{name:'Link Claude Code',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('fixture@example.test');await expect(page.locator('#claude-detection')).toContainText('max');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeDisabled();await page.getByRole('checkbox').check();await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Use existing Claude Code sign-in',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('fixture@example.test');await expect(page.locator('#claude-detection')).toContainText('max');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeDisabled();await page.getByRole('checkbox').check();await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeEnabled();
  await page.screenshot({path:'test-results/claude-account-link.png',fullPage:true});
  await page.getByRole('button',{name:'Back',exact:true}).click();await desktop.evaluate(({ipcMain})=>{ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:false}}));});
- await page.getByRole('button',{name:'Link Claude Code',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('not signed in');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Use existing Claude Code sign-in',exact:true}).click();await expect(page.locator('#claude-detection')).toContainText('not signed in');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toHaveCount(0);
+});
+
+test('Claude browser sign-in is primary and handles success, cancel and failure',async()=>{
+ directory=fs.mkdtempSync(path.join(os.tmpdir(),'usage-claude-browser-'));await launch();
+ await page.getByRole('button',{name:'Connect an account',exact:false}).click();await page.getByRole('combobox',{name:'Provider',exact:true}).selectOption('claude');await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Browser Claude');await page.locator('#add-form').getByRole('button',{name:'Add account',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Sign in with Claude',exact:true})).toHaveClass(/primary/);
+ await desktop.evaluate(({ipcMain})=>{
+  ipcMain.removeHandler('tracker:claude-login');ipcMain.handle('tracker:claude-login',()=>new Promise(resolve=>{globalThis.completeClaude=resolve;}));
+  ipcMain.removeHandler('tracker:claude-cancel');ipcMain.handle('tracker:claude-cancel',()=>{globalThis.completeClaude?.({ok:false,error:'Claude sign-in canceled.'});return {ok:true};});
+  ipcMain.removeHandler('tracker:claude-status');ipcMain.handle('tracker:claude-status',()=>({ok:true,value:{loggedIn:true,email:'browser@example.test',subscription:'pro'}}));
+ });
+ await page.getByRole('button',{name:'Sign in with Claude',exact:true}).click();await expect(page.locator('#claude-login-status')).toContainText('Waiting');await page.getByRole('button',{name:'Cancel sign-in',exact:true}).click();await expect(page.locator('#dialog-title')).toHaveText('Browser Claude');
+ await page.getByRole('button',{name:'Sign in with Claude',exact:true}).click();await expect(page.locator('#claude-login-status')).toBeVisible();await desktop.evaluate(()=>globalThis.completeClaude({ok:false,error:'Fixture sign-in failure'}));await expect(page.locator('#claude-login-status')).toHaveText('Fixture sign-in failure');
+ await page.getByRole('button',{name:'Try browser sign-in again',exact:true}).click();await expect(page.locator('#claude-login-status')).toContainText('Waiting');await desktop.evaluate(()=>globalThis.completeClaude({ok:true,value:{loggedIn:true}}));await expect(page.locator('#claude-detection')).toContainText('browser@example.test');await expect(page.getByRole('button',{name:'Link this account',exact:true})).toBeDisabled();
 });

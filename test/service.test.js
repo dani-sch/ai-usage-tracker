@@ -28,3 +28,18 @@ test('Claude account link records detected identity and plan, and unlinks withou
   await f.tracker.clearLogs(id);assert.equal(f.store.account(id).identity,null);assert.equal(f.store.account(id).status,'setup');assert.equal(f.store.account(id).tokens,null);
  }finally{f.clean();}
 });
+
+test('Claude browser completion records verified account, clears mismatched history and cancels safely',async()=>{
+ let finish,identity={loggedIn:true,email:'new@example.test',subscription:'pro'};
+ const f=setup({claudeStatus:async()=>identity,createClaudeLogin:()=>{let reject;return {done:new Promise((resolve,r)=>{finish=resolve;reject=r;}),cancel:()=>reject(new Error('canceled'))};}});
+ try{
+  const id=f.tracker.add({provider:'claude',label:'Claude'});const a=f.store.account(id);a.identity='old@example.test';a.logPath='old-history';a.tokens={days:{}};
+  const pending=f.tracker.beginClaudeLogin(id);assert.equal(f.tracker.state().accounts[0].loginPending,true);await assert.rejects(f.tracker.beginClaudeLogin(id),/already/);finish();await pending;
+  assert.equal(a.identity,identity.email);assert.equal(a.subscription,'pro');assert.equal(a.logPath,null);assert.equal(a.tokens,null);assert.equal(f.tracker.state().accounts[0].connected,true);
+  const next=f.tracker.beginClaudeLogin(id);f.tracker.cancelClaudeLogin();await assert.rejects(next,/canceled/);assert.equal(f.tracker.state().accounts[0].loginPending,false);assert.equal(a.identity,identity.email);
+ }finally{f.clean();}
+});
+test('Claude account switching blocks history refresh until the original account returns',async()=>{
+ let reads=0;const f=setup({claudeStatus:async()=>({loggedIn:true,email:'different@example.test'}),readLogs:async()=>{reads++;return {days:{}};}});
+ try {const id=f.tracker.add({provider:'claude',label:'Claude'});const a=f.store.account(id);Object.assign(a,{claudeSignedIn:true,identity:'owner@example.test',logPath:'history'});await f.tracker.refresh(id);a.lastAttempt=0;await f.tracker.refresh(id);assert.equal(reads,0);assert.equal(f.tracker.state().accounts[0].connected,false);assert.match(a.error,/another account/);}finally{f.clean();}
+});

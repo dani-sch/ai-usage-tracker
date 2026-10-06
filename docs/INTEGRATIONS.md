@@ -6,7 +6,7 @@ Primary documentation checked 2026-10-06. Interface failures preserve prior read
 | --- | --- | --- | --- |
 | ChatGPT / Codex | Official CLI browser login; separate home per account | Codex windows and multiple limit IDs; excludes ChatGPT chat | Optional local sessions, not account-wide |
 | Copilot personal billing | Fine-grained PAT with Plan read | Estimated AI credits remaining using an editable allowance; scheduled monthly reset. Legacy requests: usage only | Unavailable from billing API |
-| Claude personal | Explicit local Claude Code projects folder | Unavailable in this implementation | Local reported assistant tokens |
+| Claude personal | Official Claude Code browser login; confirmed local projects folder | Unavailable in this implementation | Local reported assistant tokens |
 | OpenAI API | Organization admin key | Subscription limits unavailable | Organization completions usage, UTC days |
 | Anthropic API | Console admin key | Subscription limits unavailable | Organization messages usage, UTC days |
 | Other | No credentials | Unavailable | Unavailable; focus timer works |

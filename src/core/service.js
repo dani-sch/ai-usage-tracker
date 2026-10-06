@@ -5,15 +5,35 @@ import fs from 'node:fs';
 import { validateAccount, PROVIDERS } from './model.js';
 import { githubUsage, apiTokens, codexQuotas } from '../providers/api.js';
 import { readLogs } from '../providers/logs.js';
+import { ClaudeLogin, claudeStatus } from '../providers/claude.js';
 import { CodexClient, findCodex } from '../providers/codex.js';
 
 export class Tracker extends EventEmitter {
   constructor(store, vault, directory, adapters = {}) {
     super(); this.store = store; this.vault = vault; this.directory = directory;
-    this.adapters = { githubUsage, apiTokens, readLogs, ...adapters };
-    this.clients = new Map(); this.inflight = new Map(); this.login = null; this.closed = false;
+    this.adapters = { githubUsage, apiTokens, readLogs, claudeStatus, createClaudeLogin:()=>new ClaudeLogin(), ...adapters };
+    this.claudeLogin=null; this.clients = new Map(); this.inflight = new Map(); this.login = null; this.closed = false;
   }
   changed() { this.emit('changed'); }
+  async beginClaudeLogin(id) {
+    if(this.store.account(id).provider!=='claude')throw new Error('Select a Claude account.');
+    if(this.claudeLogin)throw new Error('Claude sign-in is already in progress. Complete or cancel it first.');
+    const attempt={id,client:this.adapters.createClaudeLogin()};this.claudeLogin=attempt;this.changed();
+    try {
+      await attempt.client.done;
+      const identity=await this.adapters.claudeStatus();
+      if(this.claudeLogin!==attempt||this.closed)throw new Error('Claude sign-in canceled.');
+      if(!identity.loggedIn||!identity.email)throw new Error('Claude did not confirm an account. Please try signing in again.');
+      await this.inflight.get(id);
+      if(this.claudeLogin!==attempt||this.closed)throw new Error('Claude sign-in canceled.');
+      const a=this.store.account(id);
+      // A new account must not inherit history attributed to a previous sign-in.
+      if(a.identity!==identity.email){a.logPath=null;a.tokens=null;a.claudeLocalLinked=false;}
+      a.identity=identity.email;a.claudeSignedIn=true;a.claudeAuthMismatch=false;if(identity.subscription)a.subscription=identity.subscription;
+      a.error=null;a.status='ready';a.lastSuccess=Date.now();this.store.save();return identity;
+    } finally { if(this.claudeLogin===attempt)this.claudeLogin=null;this.changed(); }
+  }
+  cancelClaudeLogin() { const attempt=this.claudeLogin;this.claudeLogin=null;attempt?.client.cancel();this.changed(); }
   async linkClaude(id,identity,directory) {
     const account=this.store.account(id);
     if(account.provider!=='claude'||!identity.loggedIn)throw new Error('Sign in to Claude Code before linking history.');
@@ -24,7 +44,7 @@ export class Tracker extends EventEmitter {
     this.store.save();this.changed();
   }
   state() {
-    return { ...this.store.data, providers: PROVIDERS, active: this.store.active, secureStorage: this.vault.available(), accounts: this.store.data.accounts.map(a => ({ ...a, connected: a.provider === 'codex' ? !!a.signedIn : this.vault.has(a.id), refreshing: this.inflight.has(a.id), loginPending: this.login?.id === a.id })) };
+    return { ...this.store.data, providers: PROVIDERS, active: this.store.active, secureStorage: this.vault.available(), accounts: this.store.data.accounts.map(a => ({ ...a, connected: a.provider === 'codex' ? !!a.signedIn : a.provider==='claude' ? !!a.claudeSignedIn&&!a.claudeAuthMismatch : this.vault.has(a.id), refreshing: this.inflight.has(a.id), loginPending: this.login?.id === a.id || this.claudeLogin?.id === a.id })) };
   }
   add(input) {
     if (this.store.data.accounts.length >= 30) throw new Error('Up to 30 accounts are supported.');
@@ -85,10 +105,12 @@ export class Tracker extends EventEmitter {
     if (this.store.data.accounts.some(x => x.id !== id && x.logPath && (normalized(x.logPath) === c || normalized(x.logPath).startsWith(c+path.sep) || c.startsWith(normalized(x.logPath)+path.sep)))) throw new Error('That folder overlaps a source already assigned to another account. Use separate account folders to avoid double counting.');
     a.logPath = canonical; a.tokens = null; a.lastAttempt = 0; a.retryAt = 0; this.store.save(); await this.refresh(id);
   }
-  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; if(a.provider==='claude'){a.identity=null;a.claudeLocalLinked=false;a.status='setup';a.note=null;a.error=null;a.lastSuccess=null;} this.store.save(); this.changed(); }
+  async clearLogs(id) { await this.inflight.get(id); const a = this.store.account(id); a.logPath = null; a.tokens = null; if(a.provider==='claude'){if(!a.claudeSignedIn)a.identity=null;a.claudeLocalLinked=false;a.status=a.claudeSignedIn?'ready':'setup';a.note=null;a.error=null;a.lastSuccess=null;} this.store.save(); this.changed(); }
   async disconnect(id) {
     await this.inflight.get(id); const a = this.store.account(id);
     if (this.login?.id === id) await this.cancelLogin();
+    if(this.claudeLogin?.id===id)this.cancelClaudeLogin();
+    if(a.provider==='claude'){a.claudeSignedIn=false;a.claudeLocalLinked=false;a.logPath=null;a.tokens=null;}
     if (a.provider === 'codex' && a.signedIn) { await this.client(id).call('account/logout'); this.clients.get(id)?.close(); this.clients.delete(id); }
     this.vault.remove(id); a.signedIn = false; a.identity = null; a.quotas = []; a.usage = null; a.usageHistory = null; a.status = 'setup'; a.error = null; a.lastSuccess = null; a.lastAttempt = 0;
     if (!a.logPath) a.tokens = null;
@@ -114,7 +136,7 @@ export class Tracker extends EventEmitter {
     this.inflight.set(id,work); this.changed(); return work;
   }
   async performRefresh(a) {
-    const failures = []; let success = false;
+    const failures = []; let success = false, readLocal=true;
     try {
       if (a.provider === 'codex') {
         if (a.signedIn) {
@@ -124,11 +146,16 @@ export class Tracker extends EventEmitter {
           a.quotas = codexQuotas(report); a.identity = auth.account.email || 'ChatGPT account'; a.plan = auth.account.planType;
           a.source = 'Official Codex app server'; a.note = 'Codex limits only. ChatGPT chat limits are separate.'; success = true;
         } else a.note = 'Connect with ChatGPT to see Codex quotas. Local logs can be linked separately.';
+      } else if(a.provider==='claude'&&a.claudeSignedIn) {
+        readLocal=false;a.claudeAuthMismatch=true;
+        const identity=await this.adapters.claudeStatus();
+        if(!identity.loggedIn||identity.email!==a.identity){a.claudeAuthMismatch=true;throw new Error('Claude Code is signed out or using another account. Sign in again to continue tracking this account.');}
+        readLocal=true;a.claudeAuthMismatch=false;success=true;a.note=PROVIDERS.claude.description;
       } else if (a.provider === 'copilot' && this.vault.has(a.id)) { Object.assign(a, await this.adapters.githubUsage(a,this.vault.get(a.id))); success = true; }
       else if (['openai-api','anthropic-api'].includes(a.provider) && this.vault.has(a.id)) { a.tokens = await this.adapters.apiTokens(a.provider,this.vault.get(a.id)); a.note = 'API organization tokens; subscription quota and reset telemetry are unavailable.'; success = true; }
       else a.note = PROVIDERS[a.provider].description;
     } catch (e) { failures.push(e.message); if (e.retryAfter) a.retryAt = Date.now() + e.retryAfter*1000; }
-    if (a.logPath) {
+    if (a.logPath && readLocal) {
       try { a.tokens = await this.adapters.readLogs(a.logPath,a.provider); success = true; }
       catch (e) { failures.push(e.message); }
     }
@@ -146,5 +173,5 @@ export class Tracker extends EventEmitter {
     for (const a of this.store.data.accounts) a.nextPoll = 0;
     this.store.save(); this.changed();
   }
-  close() { this.closed = true; if (this.login) clearTimeout(this.login.timer); for (const c of this.clients.values()) c.close(); this.clients.clear(); }
+  close() { this.closed = true; this.cancelClaudeLogin(); if (this.login) clearTimeout(this.login.timer); for (const c of this.clients.values()) c.close(); this.clients.clear(); }
 }

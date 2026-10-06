@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -27,4 +27,35 @@ export async function claudeStatus({run=execute,executable}={}) {
     if(!executable) { try {findClaude();} catch(missing) {throw missing;} }
     throw new Error('Unable to read Claude Code sign-in status. Open Claude Code, sign in, and try again.');
   }
+}
+
+// The official CLI owns OAuth, browser launch, callback verification and credential storage.
+// Only a validated browser URL is retained temporarily; process output is never logged.
+export function claudeAuthURL(text) {
+  for(const candidate of text.match(/https:\/\/[^\s<>"'\x1b]+/g)||[]) {
+    try { const u=new URL(candidate); if(u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&['claude.ai','platform.claude.com','console.anthropic.com'].includes(u.hostname)&&u.pathname==='/oauth/authorize'&&u.searchParams.has('client_id'))return u.href; }catch{}
+  }
+  return null;
+}
+export class ClaudeLogin {
+  constructor({spawnProcess=spawn,executable=findClaude(),timeoutMs=300000}={}) {
+    this.url=null;this.finished=false;
+    this.done=new Promise((resolve,reject)=>{this.resolve=resolve;this.reject=reject;});
+    this.done.catch(()=>{});
+    try {
+      this.process=spawnProcess(executable,['auth','login','--claudeai'],{env:{...process.env},cwd:os.homedir(),windowsHide:true,shell:false,stdio:['pipe','pipe','pipe']});
+      let tail='';
+      const read=chunk=>{tail=(tail+chunk.toString()).slice(-16000);const url=claudeAuthURL(tail);if(url)this.url=url;};
+      this.process.stdout.on('data',read);this.process.stderr.on('data',read);
+      this.process.stdin.on('error',()=>this.finish(new Error('Claude sign-in stopped. Please try again.')));
+      this.process.once('error',()=>this.finish(new Error('Could not start Claude sign-in. Check that Claude Code is installed.')));
+      this.process.once('close',code=>this.finish(code===0?null:new Error('Claude sign-in did not complete. Check your account access and try again.')));
+      this.timer=setTimeout(()=>this.finish(new Error('Claude sign-in timed out. Please try again.')),timeoutMs);
+    }catch{this.finish(new Error('Could not start Claude sign-in. Check that Claude Code is installed.'));}
+  }
+  finish(error) {
+    if(this.finished)return;this.finished=true;clearTimeout(this.timer);this.url=null;
+    if(error){this.process?.kill();this.reject(error);}else this.resolve();
+  }
+  cancel(){this.finish(new Error('Claude sign-in canceled.'));}
 }
