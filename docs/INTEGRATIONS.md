@@ -1,0 +1,26 @@
+# Provider coverage and evidence
+
+Primary documentation checked 2026-10-06. Interface failures preserve prior readings instead of inventing values.
+
+| Account | Connection | Remaining / reset | Token history |
+| --- | --- | --- | --- |
+| ChatGPT / Codex | Official CLI browser login; separate home per account | Codex windows and multiple limit IDs; excludes ChatGPT chat | Optional local sessions, not account-wide |
+| Copilot personal billing | Fine-grained PAT with Plan read | Used AI credits or legacy requests only; allowance/reset unavailable | Unavailable from billing API |
+| Claude personal | Explicit local Claude Code projects folder | Unavailable in this implementation | Local reported assistant tokens |
+| OpenAI API | Organization admin key | Subscription limits unavailable | Organization completions usage, UTC days |
+| Anthropic API | Console admin key | Subscription limits unavailable | Organization messages usage, UTC days |
+| Other | No credentials | Unavailable | Unavailable; focus timer works |
+
+## Primary sources
+
+1. [Codex app server](https://developers.openai.com/codex/app-server): stdio initialization, account login/read/logout, quota reads and notifications. No model turns are created. Notifications trigger a fresh full read rather than incorrectly merging sparse windows.
+2. [Codex credential storage](https://github.com/openai/codex/blob/main/codex-rs/login/src/auth/storage.rs): OS keyring isolation by canonical home. The app selects `keyring`, not `auto`, to disable plaintext fallback.
+3. [GitHub billing REST API](https://docs.github.com/en/rest/billing/usage): personal `ai_credit/usage` and `premium_request/usage` endpoints. Identity comes from `/user`. Uses version `2026-03-10`; checks product and units before summing; never hardcodes allowances. Organization-paid seats need different reporting APIs and are excluded here.
+4. [OpenAI usage API](https://platform.openai.com/docs/api-reference/usage/completions): `/v1/organization/usage/completions`, daily paginated buckets. Input already includes cached input. Organization scope is labeled.
+5. [Anthropic usage API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) and [schema](https://platform.claude.com/docs/en/api/beta/organization/usage_report/retrieve_messages): `/v1/organizations/usage_report/messages`. Uncached input, cache read, both cache write durations, and output are disjoint. Console admin credentials do not provide personal Claude subscription quotas.
+6. [ClaudeBar Claude integration](https://github.com/tddworks/ClaudeBar/blob/main/docs/providers/claude/README.md): reviewed as inspiration. Its personal quota adapters use CLI probing and OAuth usage interfaces. This app does not scrape terminal UI, impersonate a first-party OAuth client, or import browser cookies; it labels the limitation and supports local reported tokens.
+7. [Electron safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage): DPAPI on Windows, Keychain-backed encryption on macOS; insecure fallback is rejected.
+
+JSONL formats are implementation details, not stable public APIs. Only recognized reported counters are accepted; non-token content is ignored. Local logs do not reliably identify subscriptions, so users must explicitly attribute folders. Repeated events are deduplicated, parsing problems are surfaced, and no prompts are copied into stored state or sent anywhere.
+
+Contract tests use synthetic responses. Authenticated live validation requires an account owner to connect through the app; no credentials are included in tests or source.
