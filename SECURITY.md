@@ -1,0 +1,23 @@
+# Security and local data
+
+The renderer loads bundled local UI only, with context isolation, sandboxing, no Node access, and a Content Security Policy that blocks network connections. The narrow preload API has no arbitrary file or command access. IPC validates the main frame and exact bundled URL. External browser links require HTTPS and an allowlisted hostname. Popups, navigation, webviews, and permission requests are denied.
+
+API password fields are cleared after submission. Credentials are encrypted in the main process with Electron safeStorage and never returned in application state or logged. Insecure OS storage fallback is rejected. Windows DPAPI protects against other users, not malware running as the same user. macOS Keychain behavior requires validation on a signed build; unsigned builds can reprompt after updates.
+
+Codex is user-installed: select only the official native CLI. It is spawned without a shell, with fixed arguments, separate app-owned homes, and explicit `keyring` storage. Existing CLI credentials are neither imported nor modified. Removing a connected Codex account first signs out via the official method. If CLI/keychain sign-out fails, removal fails visibly rather than silently orphaning a credential. Keep the CLI available when disconnecting accounts.
+
+Claude browser login invokes the official installed CLI with fixed `auth login --claudeai` arguments and no shell. The CLI handles OAuth and saves credentials using its own storage; the tracker does not import them or claim they use Electron encryption. It uses the active local Claude Code profile, so sign-in can change that profile's account. Subprocess output is not logged or sent to the renderer. A validated HTTPS OAuth URL is held only for the pending login to support reopening the browser. Cancellation, timeout and app shutdown stop the pending CLI process. The tracker verifies account identity after completion and before refreshing linked history; different identities must reconfirm history. Unlinking Claude from the tracker does not log out the shared Claude Code application.
+
+Only fixed API origins receive credentials. Redirects are rejected, requests time out, and HTTP errors are sanitized. Local JSONL readers stream data with size/entry limits and skip symlinks. Prompt content is transiently parsed as part of records but never persisted or uploaded. History contains aggregate metadata and is not encrypted; protect the OS account and disk. There is no remote database or application telemetry service.
+
+The optional Claude website companion runs only on `https://claude.ai/`. Its page observer examines usage responses and `message_limit` events in completion streams; text is transiently encountered when parsing the stream but is not retained, forwarded, or uploaded. The isolated/background bridge forwards only validated numeric windows and an organization identifier. No Claude cookies or passwords are read. It does not send prompts or circumvent sign-in/access checks. It uses undocumented website responses, so an upstream change may make readings unavailable.
+
+The companion connects to a loopback-only HTTP listener using a random 256-bit bearer key. The app requires the expected extension origin and exact loopback Host, limits body size, and rejects organization changes until re-pairing. Initial pairing expires after ten minutes; paired keys remain valid until rotated or disconnected. Keys use the app's encrypted vault and extension-local storage restricted to trusted extension contexts. Readings and account metadata are not encrypted. The listener has no arbitrary URL fetch, command, or filesystem endpoints. This is a local, user-installed unpacked extension, not a published Chrome/Edge store release.
+
+## Recovery
+
+Close the app before backing up its data folder. Encrypted credentials may not decrypt on another machine; reconnect there. Unreadable state stops startup and preserves the original file: restore `state.json` from a backup. Never share credential files or Codex profiles in issues. Removing an account deletes its tracker credentials/history but leaves external logs untouched. Unlinking logs removes imported token readings.
+
+Report security issues privately to the repository owner without personal data or secrets.
+
+The app has no runtime npm dependencies. Locked development tooling currently has a moderate `sprintf-js` denial-of-service advisory in the packaging logger/proxy dependency chain; these packages are not bundled in the app. Recheck with `npm audit` during tooling upgrades. Avoid forced downgrades without revalidating the packaging toolchain.

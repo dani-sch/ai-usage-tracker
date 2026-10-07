@@ -1,1 +1,87 @@
-# ai-usage-tracker
+# AI Usage Tracker
+
+A private Windows and macOS desktop dashboard for AI subscription accounts, reported tokens, and working time. Inspired by [ClaudeBar](https://github.com/tddworks/ClaudeBar); independently implemented in Electron. No ClaudeBar code or assets are included.
+
+## Features
+
+- Multiple named accounts per provider, subscription/provider filters, automatic polling, manual refresh, and tray/menu-bar access.
+- Compact 460-pixel side panel, horizontally scrolling provider tabs, expanded view, and an optional persistent pin-on-top setting.
+- Codex remaining quota windows and reset timestamps through the official app server.
+- GitHub Copilot personal billing usage, with AI-credit and legacy premium-request modes. AI-credit accounts show estimated credits remaining and a percentage bar using the plan allowance or an editable override.
+- OpenAI and Anthropic organization API token reports, with pagination.
+- Optional Codex and Claude Code local logs for reported tokens.
+- Rolling 30-day daily usage chart with separate Tokens, AI credits, legacy Requests, estimated Active time, and manual Focus views, exact hover/tap/keyboard values, and an accessible daily table. Copilot daily billing is fetched and cached independently of monthly totals.
+- Automatically estimated active time from local session timestamps, with long gaps excluded and overlapping sessions merged. Separate per-account focus timers with idle/lock/sleep protection.
+- Encrypted credentials, isolated Codex sign-ins, atomic persistence, and account removal.
+
+**There is no universal subscription usage API.** Unavailable telemetry is distinct from measured zero. Tokens are never derived from percentages or billing credits. API organization usage is separate from subscription quotas. See [provider coverage](docs/INTEGRATIONS.md).
+
+## Run locally
+
+Requires Node.js 24 LTS and npm. The installer runs without Node.js. Codex accounts additionally require the official native Codex CLI.
+
+```sh
+npm ci
+npm start
+```
+
+Use **Add account**, choose a provider, name the account, and optionally enter a plan label. Then:
+
+- **ChatGPT / Codex:** choose **Sign in with ChatGPT** and finish in your browser. Create another profile for another identity. If CLI discovery fails, choose its native executable in Settings. Existing CLI credentials are never imported. On Windows choose `codex.exe`, not an npm `.cmd` shim.
+- **GitHub Copilot:** choose **Connect securely** and follow the on-screen token instructions with **Plan: read** permission. Choose the applicable billing model in account details. For AI credits, enter Pro, Pro+, or Max as the subscription to use the published allowance, or set **Monthly AI credit allowance** to the amount shown on your [GitHub AI usage page](https://github.com/settings/billing/ai_usage). Leave this field blank to use the plan default. Organization-paid seats are excluded from this personal endpoint.
+- **Claude Free / paid website accounts:** choose **Connect Claude website · Free & paid**. Open the bundled companion folder, load it once as an unpacked extension in Chrome or Edge, and paste the app's short-lived connection code into the companion popup. **Connect & open Claude** opens claude.ai for normal browser sign-in. Keep a Claude tab open: paid usage can arrive from website usage reports, while Free usage may first arrive with your next normal chat response. The app shows reported remaining percentages and resets; missing/expired readings stay unavailable. The companion sends only numeric windows and an organization identifier to the local app, never passwords, cookies, or chat text. Website interfaces are unofficial and can change. See [browser setup](docs/CLAUDE-WEBSITE.md).
+- **Claude Code (optional):** **Sign in to Claude Code** retains the official CLI browser-login flow, with local token and working-time history available separately after attribution confirmation. A free Claude chat account does not need Claude Code for the website connector.
+- **OpenAI API / Anthropic API:** enter the corresponding **organization admin key**. These are organization-wide reports, not subscription allowances. Do not add overlapping reports for the same organization twice.
+- **Other:** name any subscription and track focus time.
+
+Never paste credentials into chat, issues, or source files. Enter them only in the app's password field. Browser sign-in is used where available.
+
+For Codex tokens, use **Link token history** below the chart, confirm account attribution, and choose **Use this computer’s Codex history** or select a `sessions` folder yourself. Automatic discovery uses `CODEX_HOME/sessions`, falling back to `~/.codex/sessions`. The tracker's isolated sign-in profiles do not automatically contain working sessions. Logs with multiple identities cannot reliably be split by subscription; use separate working profiles. Overlapping folder sources are rejected.
+
+## Data semantics
+
+**Tokens:** input plus output, including cached input exactly once. Codex cumulative snapshots are deduplicated. Claude assistant messages are deduplicated and their disjoint cache categories included. Token dates use UTC, as do API reports. Local values cover only selected folders and retained records. Provider ingestion can lag. Missing values show `—`/Unavailable. Complete successful reports may return zero. Malformed API results preserve previous readings; unreadable JSONL records show a partial-data warning.
+
+**Daily billing:** GitHub's day-filtered billing reports supply real daily AI credits or legacy requests, never fabricated tokens or evenly divided monthly totals. The initial backfill requests up to 30 days with at most three concurrent daily requests per account. Today refreshes with the account, recent days are rechecked hourly, older days daily. Rate limits stop backfill and preserve cached readings with an explicit warning; missing dates remain unavailable. Oversized local JSONL records (often image attachments) are skipped with a partial-history warning instead of discarding all valid counters.
+
+**Working time (estimated):** time between local Codex or Claude session activity events no more than five minutes apart. Longer gaps and unobserved time after the last event are excluded; overlapping session/account intervals are merged. Totals use local calendar days and reflect only linked, retained logs. This is an approximate activity duration, not measured human working time. Copilot billing reports do not provide timestamps suitable for this metric. It refreshes when local history refreshes.
+
+**Focus time:** a separate explicit timer, one subscription at a time, not inference runtime or an estimate from tokens. It pauses after five minutes of OS inactivity, on lock, and on sleep. The grace period can include up to five minutes of inactivity. Checkpoints occur every 15 seconds; a crash can lose the last checkpoint interval. Timers never resume after restart; heartbeat gaps over one minute are discarded. Summaries use the local calendar at recording time, including DST.
+
+**Quotas:** Codex displays provider-reported windows; passing a reset time does not reset a displayed quota until the provider confirms it. Copilot AI-credit balances are explicitly **estimated** by subtracting the reported current-month usage from an editable allowance. Published defaults checked October 6, 2026 are Pro 1,500, Pro+ 7,000, and Max 20,000 credits; GitHub's flex allotment can change. The scheduled reset is the first of the next month at 00:00 UTC, per [GitHub's individual billing documentation](https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing). Old-month reports never become a new-month balance, excess usage is shown separately, and unknown plans require a custom allowance. Legacy premium requests remain usage-only. Errors explicitly mark saved readings.
+
+## Build and verify
+
+```sh
+npm run check
+npm test
+npm run test:e2e
+npm run pack
+
+# On Windows: x64 NSIS installer
+npm run dist:win
+npm run test:package
+
+# On macOS: Intel and Apple silicon DMG/ZIP
+npm run dist:mac
+```
+
+Packages go to `release/`. GitHub Actions runs checks, real Electron UI tests, and packaging on Windows and macOS, then uploads artifacts. It does not publish a release. A Windows build cannot validate macOS Keychain, signing, or the DMG.
+
+Default builds are unsigned development builds. Public distribution requires your own Windows and Apple signing/notarization credentials using [electron-builder signing](https://www.electron.build/code-signing.html). Store credentials in CI secrets. The supplied workflow disables signing discovery; remove that setting in a signed release job. No signing identity is provided.
+
+`node scripts/smoke-codex.mjs` checks the actual installed CLI's initialization and an isolated signed-out account read. It does not inspect existing credentials.
+
+## Architecture and storage
+
+- `src/main.js`: hardened window, allowlisted IPC, native file picker, tray, lifecycle.
+- `src/core/`: persistence, vault, timer, polling, model, HTTP boundaries.
+- `src/providers/`: official Codex JSON-RPC, billing/admin APIs, streaming log parsers.
+- `src/renderer/`: dependency-free dashboard; no Node or direct network access.
+- `test/`: invariants, refresh/error handling, actual Electron tests. Fixtures exist only in isolated temporary test profiles.
+
+App data lives in `%APPDATA%/AI Usage Tracker` on Windows or `~/Library/Application Support/AI Usage Tracker` on macOS. `state.json` holds labels, aggregates, source paths, settings, and focus totals. `credentials.json` holds OS-encrypted API keys. Codex uses explicit `keyring` storage in app-owned `profiles/<uuid>` homes; plaintext fallback is disabled. Prompt bodies are never persisted. Removing an account signs out and deletes its tracker data, leaving external logs untouched.
+
+Read [SECURITY.md](SECURITY.md) and [verification evidence](docs/VERIFICATION.md).
+
+MIT. See [LICENSE](LICENSE).
